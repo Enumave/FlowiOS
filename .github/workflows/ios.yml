@@ -30,15 +30,20 @@ jobs:
       - name: Generate iOS project
         run: pnpm tauri ios init --ci
 
-      - name: Disable code signing
+      - name: Disable code signing in Xcode project
         run: |
-          cat > "$RUNNER_TEMP/nosign.xcconfig" <<'EOF'
-          CODE_SIGNING_ALLOWED = NO
-          CODE_SIGNING_REQUIRED = NO
-          CODE_SIGN_IDENTITY =
-          DEVELOPMENT_TEAM =
-          EOF
-          echo "XCODE_XCCONFIG_FILE=$RUNNER_TEMP/nosign.xcconfig" >> "$GITHUB_ENV"
+          python3 - <<'PY'
+          import re, glob
+          p = glob.glob('src-tauri/gen/apple/*.xcodeproj/project.pbxproj')[0]
+          s = open(p).read()
+          keys = 'DEVELOPMENT_TEAM|CODE_SIGN_IDENTITY|CODE_SIGN_STYLE|CODE_SIGNING_ALLOWED|CODE_SIGNING_REQUIRED|PROVISIONING_PROFILE_SPECIFIER'
+          s = re.sub(r'^[ \t]*"?(' + keys + r')[^=\n]*=[^;\n]*;[ \t]*\n', '', s, flags=re.M)
+          add = 'buildSettings = {\n\t\t\t\tCODE_SIGNING_ALLOWED = NO;\n\t\t\t\tCODE_SIGNING_REQUIRED = NO;\n\t\t\t\tCODE_SIGN_IDENTITY = "";\n\t\t\t\tCODE_SIGN_STYLE = Manual;'
+          s = s.replace('buildSettings = {', add)
+          open(p, 'w').write(s)
+          print('patched', p)
+          PY
+          grep -c "CODE_SIGNING_ALLOWED" src-tauri/gen/apple/*.xcodeproj/project.pbxproj
 
       - name: Build
         continue-on-error: true
