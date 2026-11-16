@@ -1,0 +1,9 @@
+{
+  "identifier": "com.enumave.flow",
+  "bundle": {
+    "createUpdaterArtifacts": false,
+    "iOS": {
+      "minimumSystemVersion": "15.0"
+    }
+  }
+}
