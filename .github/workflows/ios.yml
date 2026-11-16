@@ -1,0 +1,49 @@
+name: iOS build
+on:
+  workflow_dispatch:
+
+jobs:
+  ios:
+    runs-on: macos-15
+    timeout-minutes: 120
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+
+      - name: Install pnpm
+        run: npm install -g pnpm
+
+      - uses: dtolnay/rust-toolchain@stable
+        with:
+          targets: aarch64-apple-ios
+
+      - uses: Swatinem/rust-cache@v2
+        with:
+          workspaces: src-tauri
+
+      - name: Install frontend dependencies
+        run: pnpm install --frozen-lockfile
+
+      - name: Generate iOS project
+        run: pnpm tauri ios init --ci
+
+      - name: Build
+        continue-on-error: true
+        run: pnpm tauri ios build --export-method debugging
+
+      - name: Package unsigned IPA
+        run: |
+          APP=$(find src-tauri/gen/apple -type d -name "*.app" | head -n 1)
+          echo "Found: $APP"
+          mkdir -p out/Payload
+          cp -R "$APP" out/Payload/
+          cd out && zip -qry Flow-unsigned.ipa Payload
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: flow-ios
+          path: out/Flow-unsigned.ipa
+          if-no-files-found: warn
