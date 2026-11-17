@@ -54,6 +54,7 @@ jobs:
           APP=$(find "$HOME/Library/Developer/Xcode/DerivedData" src-tauri/gen/apple -type d -name "*.app" -path "*iphoneos*" 2>/dev/null | head -n 1)
           echo "Found: $APP"
           test -n "$APP"
+          find "$APP" -maxdepth 1 -type f -size +5M | grep -q . || { echo "No real app binary, build failed"; exit 1; }
           mkdir -p out/Payload
           cp -R "$APP" out/Payload/
           cd out && zip -qry Flow-unsigned.ipa Payload
