@@ -106,7 +106,6 @@ quick-xml = "0.42"
 # Reading the segment index of fragmented MP4 audio, to serve it as HLS.
 mp4-atom = { version = "0.17", default-features = false }
 deunicode = "1.6.2"
-trash = "5"
 encoding_rs = "0.8"
 
 # Native Windows toast notifications: build the toast XML directly so we can attach
@@ -145,6 +144,8 @@ tauri-plugin-single-instance = { version = "2", features = ["deep-link"] }
 tauri-plugin-window-state = "2"
 # Global media keys. Installed at runtime only once the setting is turned on (services/media_keys.rs).
 tauri-plugin-global-shortcut = "2"
+# Recycle bin support: desktop only, iOS has no trash.
+trash = "5"
 
 # tauri-plugin-deep-link 2.6.2 builds `ini::ParseOption` with only the fields rust-ini 0.21.1
 # has, so 0.21.3 breaks its Linux build. Drop this pin once deep-link ships a fix.
@@ -154,9 +155,11 @@ rust-ini = "=0.21.3"
 webkit2gtk = { version = "=2.0.2", features = ["v2_20"] }
 # Probes for the AppIndicator library before building the tray (src/services/music_tray.rs).
 libloading = "0.9"
+
 # iOS: the Apple keychain backend only compiles with `protected` enabled.
 [target.'cfg(target_os = "ios")'.dependencies]
 apple-native-keyring-store = { version = "1", features = ["protected"] }
+
 [profile.release]
 # Keep production binaries compact without sacrificing the normal release optimizer.
 panic = "abort"
