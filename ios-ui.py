@@ -85,5 +85,65 @@ replace(
     '<meta name="viewport" content="width=device-width, initial-scale=1.0" />',
     '<meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover" />',
 )
-
+# 7. App-wide touch behaviour, as on Android: hold for the menu a right click opens, swipe in from
+#    the left edge to go back, pull a page down to refresh it (Home and Subscriptions), and keep
+#    hover-only buttons visible. The logic lives in src/lib/touchNavigation.ts.
+replace(
+    "src/App.tsx",
+    'import { useTabHistoryShortcuts } from "./lib/tabs/useTabHistoryShortcuts";\n',
+    'import { useTabHistoryShortcuts } from "./lib/tabs/useTabHistoryShortcuts";\n'
+    'import { useTouchNavigation } from "./lib/touchNavigation";\n',
+)
+replace(
+    "src/App.tsx",
+    "  useTabHistoryShortcuts();\n",
+    "  useTabHistoryShortcuts();\n  useTouchNavigation();\n",
+)
+replace(
+    "src/pages/Home.tsx",
+    'import { RefreshCw } from "lucide-react";\n',
+    'import { RefreshCw } from "lucide-react";\n'
+    'import { registerPullRefresh } from "../lib/touchNavigation";\n',
+)
+replace(
+    "src/pages/Home.tsx",
+    "    return () => window.removeEventListener(HOME_RESELECTED_EVENT, handleReselected);\n"
+    "  }, [scrollContainer, refreshOnReselect, chipFeed, reloadChip, handleRefresh]);\n",
+    "    return () => window.removeEventListener(HOME_RESELECTED_EVENT, handleReselected);\n"
+    "  }, [scrollContainer, refreshOnReselect, chipFeed, reloadChip, handleRefresh]);\n"
+    "\n"
+    "  useEffect(\n"
+    "    () =>\n"
+    "      registerPullRefresh(() => {\n"
+    "        if (chipFeed) reloadChip();\n"
+    "        else handleRefresh();\n"
+    "      }),\n"
+    "    [chipFeed, reloadChip, handleRefresh],\n"
+    "  );\n",
+)
+replace(
+    "src/pages/Subscriptions.tsx",
+    'import { ChevronDown, ChevronUp, ListChecks, Loader2, Pencil, Plus, RefreshCw, Trash2, Upload, User } from "lucide-react";\n',
+    'import { ChevronDown, ChevronUp, ListChecks, Loader2, Pencil, Plus, RefreshCw, Trash2, Upload, User } from "lucide-react";\n'
+    'import { registerPullRefresh } from "../lib/touchNavigation";\n',
+)
+replace(
+    "src/pages/Subscriptions.tsx",
+    "  const channelDetails = useSubscriptionChannelDetails(subscriptions);\n",
+    "  useEffect(() => registerPullRefresh(() => void refreshFeed()), [refreshFeed]);\n"
+    "  const channelDetails = useSubscriptionChannelDetails(subscriptions);\n",
+)
+with open("src/App.css", "a", encoding="utf-8", newline="\n") as css:
+    css.write(
+        "\n/* Touch screens have no hover, so controls that only appear on hover stay visible. */\n"
+        "@media (hover: none) {\n"
+        '  [class*="group-hover:opacity-100"] {\n'
+        "    opacity: 1 !important;\n"
+        "  }\n"
+        "  body {\n"
+        "    -webkit-touch-callout: none;\n"
+        "  }\n"
+        "}\n"
+    )
+print("patched src/App.css")
 print("ios-ui: done")
