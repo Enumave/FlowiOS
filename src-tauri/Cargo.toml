@@ -154,7 +154,9 @@ rust-ini = "=0.21.3"
 webkit2gtk = { version = "=2.0.2", features = ["v2_20"] }
 # Probes for the AppIndicator library before building the tray (src/services/music_tray.rs).
 libloading = "0.9"
-
+# iOS: the Apple keychain backend only compiles with `protected` enabled.
+[target.'cfg(target_os = "ios")'.dependencies]
+apple-native-keyring-store = { version = "1", features = ["protected"] }
 [profile.release]
 # Keep production binaries compact without sacrificing the normal release optimizer.
 panic = "abort"
