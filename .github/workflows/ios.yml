@@ -27,6 +27,9 @@ jobs:
       - name: Install frontend dependencies
         run: pnpm install --frozen-lockfile
 
+      - name: Apply iOS port
+        run: python3 ios-port.py
+
       - name: Generate iOS project
         run: pnpm tauri ios init --ci
 
@@ -43,11 +46,14 @@ jobs:
           open(p, 'w').write(s)
           print('patched', p)
           PY
-          grep -c "CODE_SIGNING_ALLOWED" src-tauri/gen/apple/*.xcodeproj/project.pbxproj
 
       - name: Build
-        continue-on-error: true
-        run: pnpm tauri ios build --export-method debugging
+        run: pnpm tauri ios build --export-method debugging 2>&1 | tee build.log || true
+
+      - name: Show Rust errors
+        if: always()
+        run: |
+          sed 's/\x1b\[[0-9;]*m//g' build.log | grep -E -A8 "^error" | head -150 || true
 
       - name: Package unsigned IPA
         run: |
