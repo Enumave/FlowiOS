@@ -29,6 +29,9 @@ jobs:
 
       - name: Apply iOS port
         run: python3 ios-port.py
+      
+      - name: Apply iPad interface changes
+        run: python3 ios-ui.py
 
       - name: Generate iOS project
         run: pnpm tauri ios init --ci
