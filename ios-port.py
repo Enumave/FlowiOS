@@ -77,13 +77,19 @@ impl<R: Runtime> WindowCompat for WebviewWindow<R> {
 }
 
 pub trait BuilderCompat: Sized {
-    fn skip_taskbar(self, _skip: bool) -> Self {
-        self
-    }
-
-    fn maximizable(self, _maximizable: bool) -> Self {
-        self
-    }
+    fn skip_taskbar(self, _v: bool) -> Self { self }
+    fn maximizable(self, _v: bool) -> Self { self }
+    fn minimizable(self, _v: bool) -> Self { self }
+    fn closable(self, _v: bool) -> Self { self }
+    fn focused(self, _v: bool) -> Self { self }
+    fn decorations(self, _v: bool) -> Self { self }
+    fn always_on_top(self, _v: bool) -> Self { self }
+    fn always_on_bottom(self, _v: bool) -> Self { self }
+    fn shadow(self, _v: bool) -> Self { self }
+    fn content_protected(self, _v: bool) -> Self { self }
+    fn general_autofill_enabled(self, _v: bool) -> Self { self }
+    fn maximized(self, _v: bool) -> Self { self }
+    fn fullscreen(self, _v: bool) -> Self { self }
 }
 
 impl<'a, R: Runtime, M: Manager<R>> BuilderCompat for WebviewWindowBuilder<'a, R, M> {}
