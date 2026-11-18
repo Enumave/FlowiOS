@@ -606,4 +606,46 @@ with open("src/App.css", "a", encoding="utf-8", newline="\n") as css:
         "}\n"
     )
 print("patched src/App.css (player controls)")
+# 12. Phone-width top bar, as on Android's compact layout: a logo without its name, no settings
+#     button (it is in the menu drawer), and no keyboard-shortcut hint in the search box.
+replace(
+    "src/components/layout/Topbar.tsx",
+    "import { useSidebarDrawer } from '../../lib/useSidebarDrawer';\n",
+    "import { useSidebarDrawer } from '../../lib/useSidebarDrawer';\n"
+    "import { useMediaQuery } from '../../lib/useMediaQuery';\n"
+    "import { IS_MOBILE_RUNTIME } from '../../lib/platform';\n",
+)
+replace(
+    "src/components/layout/Topbar.tsx",
+    "  const usesDrawer = useSidebarDrawer();\n",
+    "  const usesDrawer = useSidebarDrawer();\n"
+    "  const narrowWindow = useMediaQuery('(max-width: 639px)');\n"
+    "  const isPhone = IS_MOBILE_RUNTIME && narrowWindow;\n",
+)
+replace(
+    "src/components/layout/Topbar.tsx",
+    "<Logo size={36} showText={true} />",
+    "<Logo size={36} showText={!isPhone} />",
+)
+replace(
+    "src/components/layout/Topbar.tsx",
+    "        <IconButton onClick={() => navigate('/settings')} title={getString('settings_title')} aria-label={getString('settings_title')}>\n"
+    "          <Settings />\n"
+    "        </IconButton>\n",
+    "        {!isPhone && (\n"
+    "          <IconButton onClick={() => navigate('/settings')} title={getString('settings_title')} aria-label={getString('settings_title')}>\n"
+    "            <Settings />\n"
+    "          </IconButton>\n"
+    "        )}\n",
+)
+replace(
+    "src/components/layout/TopbarSearch.tsx",
+    "import { IS_MACOS_RUNTIME } from '../../lib/platform';\n",
+    "import { IS_MACOS_RUNTIME, IS_MOBILE_RUNTIME } from '../../lib/platform';\n",
+)
+replace(
+    "src/components/layout/TopbarSearch.tsx",
+    '        ) : (\n          <kbd className="hidden shrink-0',
+    '        ) : IS_MOBILE_RUNTIME ? null : (\n          <kbd className="hidden shrink-0',
+)
 print("ios-ui: done")
