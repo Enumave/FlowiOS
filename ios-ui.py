@@ -246,5 +246,157 @@ replace(
     "      const [a, b] = Array.from(pointers.values());\n      return { x: (a.x + b.x) / 2, y: (a.y + b.y) / 2 };",
     "      const [a, b] = Array.from(pointers.values());\n      if (!a || !b) return start;\n      return { x: (a.x + b.x) / 2, y: (a.y + b.y) / 2 };",
 )
+# 9. A phone/tablet layout like Flow for Android: no side rail, a bottom bar for the main places,
+#    the menu button opens the drawer, and the drawer clears the status bar. The status bar is
+#    also hidden in the app's Info.plist (see note below).
+def write_file(rel, text):
+    with open(rel, "w", encoding="utf-8", newline="\n") as f:
+        f.write(text)
+    print(f"wrote {rel}")
 
+
+write_file(
+    "src/components/layout/BottomNav.tsx",
+    r'''import type { ReactNode } from 'react';
+import { NavLink, useLocation } from 'react-router-dom';
+import { SidebarNavIcon, type SidebarNavIconName } from '../ui/SidebarNavIcon';
+import { ShortsIcon, ShortsAIcon } from '../ui/ShortsIcon';
+import { useAppSettingsStore } from '../../store/useAppSettingsStore';
+import { getString } from '../../lib/i18n/index';
+import { announceHomeReselected } from '../../lib/homeReselect';
+import { useShortsEnabled } from '../../lib/useShortsContent';
+import { useMusicEnabled } from '../../lib/useMusicContent';
+import { SETTINGS } from '../../lib/settings/schema';
+import { IS_MOBILE_RUNTIME } from '../../lib/platform';
+
+type Destination = {
+  to: string;
+  label: string;
+  icon: ReactNode;
+  activeIcon: ReactNode;
+  end?: boolean;
+  onReselect?: () => void;
+};
+
+function navIcons(name: SidebarNavIconName) {
+  return {
+    icon: <SidebarNavIcon name={name} variant="outline" className="h-6 w-6 shrink-0" />,
+    activeIcon: <SidebarNavIcon name={name} variant="filled" className="h-6 w-6 shrink-0" />,
+  };
+}
+
+/** The main places to go on a phone or tablet, as the bottom bar of Flow for Android. */
+export function BottomNav() {
+  const location = useLocation();
+  const shortsNavEnabled = useAppSettingsStore((state) => state.values[SETTINGS.SHORTS_NAVIGATION_ENABLED] !== 'false');
+  const shortsEnabled = useShortsEnabled();
+  const musicNavEnabled = useAppSettingsStore((state) => state.values[SETTINGS.MUSIC_NAVIGATION_ENABLED] !== 'false');
+  const musicEnabled = useMusicEnabled();
+
+  if (!IS_MOBILE_RUNTIME) return null;
+  if (location.pathname.startsWith('/watch/') || location.pathname.startsWith('/settings')) return null;
+
+  const destinations: Destination[] = [
+    {
+      to: '/',
+      end: true,
+      label: getString('home'),
+      ...navIcons('home'),
+      onReselect: () => {
+        if (location.pathname === '/') announceHomeReselected();
+      },
+    },
+  ];
+  if (shortsEnabled && shortsNavEnabled) {
+    destinations.push({
+      to: '/shorts',
+      label: getString('sidebar_shorts'),
+      icon: <ShortsIcon className="h-6 w-6 shrink-0" />,
+      activeIcon: <ShortsAIcon className="h-6 w-6 shrink-0" />,
+    });
+  }
+  if (musicEnabled && musicNavEnabled) {
+    destinations.push({ to: '/music', label: getString('sidebar_music'), ...navIcons('music') });
+  }
+  destinations.push(
+    { to: '/subscriptions', label: getString('sidebar_subscriptions'), ...navIcons('subscriptions') },
+    { to: '/library', label: getString('sidebar_you'), ...navIcons('you') },
+  );
+
+  return (
+    <nav className="flex h-14 shrink-0 items-stretch border-t border-chrome-neutral-800/50 bg-background">
+      {destinations.map((destination) => (
+        <NavLink
+          key={destination.to}
+          to={destination.to}
+          end={destination.end}
+          onClick={destination.onReselect}
+          className="flex min-w-0 flex-1 flex-col items-center justify-center gap-0.5 px-1 text-[11px]"
+        >
+          {({ isActive }) => (
+            <>
+              <span className={isActive ? 'text-[var(--color-primary)]' : 'text-chrome-neutral-300'}>
+                {isActive ? destination.activeIcon : destination.icon}
+              </span>
+              <span
+                className={`max-w-full truncate ${
+                  isActive ? 'font-medium text-chrome-neutral-100' : 'text-chrome-neutral-300'
+                }`}
+              >
+                {destination.label}
+              </span>
+            </>
+          )}
+        </NavLink>
+      ))}
+    </nav>
+  );
+}
+''',
+)
+replace(
+    "src/components/layout/Sidebar.tsx",
+    "import { useNotesEnabled } from '../../lib/useNotes';\n",
+    "import { useNotesEnabled } from '../../lib/useNotes';\n"
+    "import { IS_MOBILE_RUNTIME } from '../../lib/platform';\n",
+)
+replace(
+    "src/components/layout/Sidebar.tsx",
+    "    !isOverlay &&\n    (location.pathname.startsWith('/watch/') ||\n",
+    "    !isOverlay &&\n    (IS_MOBILE_RUNTIME ||\n      location.pathname.startsWith('/watch/') ||\n",
+)
+replace(
+    "src/lib/useSidebarDrawer.ts",
+    'import { useMediaQuery } from "./useMediaQuery";\n',
+    'import { useMediaQuery } from "./useMediaQuery";\nimport { IS_MOBILE_RUNTIME } from "./platform";\n',
+)
+replace(
+    "src/lib/useSidebarDrawer.ts",
+    '  return narrow || pathname.startsWith("/watch/") || pathname.startsWith("/settings");',
+    '  return IS_MOBILE_RUNTIME || narrow || pathname.startsWith("/watch/") || pathname.startsWith("/settings");',
+)
+replace(
+    "src/components/layout/PageWrapper.tsx",
+    "import { useSidebarDrawer } from '../../lib/useSidebarDrawer';\n",
+    "import { useSidebarDrawer } from '../../lib/useSidebarDrawer';\nimport { BottomNav } from './BottomNav';\n",
+)
+replace(
+    "src/components/layout/PageWrapper.tsx",
+    "      </div>\n      {usesDrawer && (\n",
+    "      </div>\n      <BottomNav />\n      {usesDrawer && (\n",
+)
+replace(
+    "src/components/layout/PageWrapper.tsx",
+    "top-[calc(var(--app-titlebar-height)+3.5rem)]",
+    "top-[calc(var(--app-titlebar-height)+3.5rem+env(safe-area-inset-top,0px))]",
+)
+# Hide the iPad status bar and keep the app full screen (applies when installed on its own).
+replace(
+    "src-tauri/Info.ios.plist",
+    "</dict>\n</plist>",
+    "  <key>UIStatusBarHidden</key>\n  <true/>\n"
+    "  <key>UIViewControllerBasedStatusBarAppearance</key>\n  <false/>\n"
+    "  <key>UIRequiresFullScreen</key>\n  <true/>\n"
+    "</dict>\n</plist>",
+)
 print("ios-ui: done")
