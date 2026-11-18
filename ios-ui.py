@@ -399,4 +399,211 @@ replace(
     "  <key>UIRequiresFullScreen</key>\n  <true/>\n"
     "</dict>\n</plist>",
 )
+# 10. Touch-first player and Android's rail-or-bar rule for the main navigation.
+write_file(
+    "src/lib/windowSizeClass.ts",
+    r'''import { useMediaQuery } from "./useMediaQuery";
+import { IS_MOBILE_RUNTIME } from "./platform";
+
+/**
+ * Flow for Android shows a side rail on a wide window of medium height (a tablet on its side) and a
+ * bottom bar everywhere else. Sizes are Android's window size classes in CSS pixels.
+ */
+export function useUsesNavigationRail(): boolean {
+  const expandedWidth = useMediaQuery("(min-width: 840px)");
+  const mediumHeight = useMediaQuery("(min-height: 480px) and (max-height: 899px)");
+  const landscape = useMediaQuery("(orientation: landscape)");
+  return IS_MOBILE_RUNTIME && ((expandedWidth && mediumHeight) || (landscape && !mediumHeight));
+}
+''',
+)
+replace(
+    "src/components/layout/BottomNav.tsx",
+    "import { IS_MOBILE_RUNTIME } from '../../lib/platform';\n",
+    "import { IS_MOBILE_RUNTIME } from '../../lib/platform';\n"
+    "import { useUsesNavigationRail } from '../../lib/windowSizeClass';\n",
+)
+replace(
+    "src/components/layout/BottomNav.tsx",
+    "  const musicEnabled = useMusicEnabled();\n\n  if (!IS_MOBILE_RUNTIME) return null;\n",
+    "  const musicEnabled = useMusicEnabled();\n  const usesRail = useUsesNavigationRail();\n\n  if (!IS_MOBILE_RUNTIME || usesRail) return null;\n",
+)
+replace(
+    "src/components/layout/Sidebar.tsx",
+    "import { IS_MOBILE_RUNTIME } from '../../lib/platform';\n",
+    "import { IS_MOBILE_RUNTIME } from '../../lib/platform';\n"
+    "import { useUsesNavigationRail } from '../../lib/windowSizeClass';\n",
+)
+replace(
+    "src/components/layout/Sidebar.tsx",
+    "  if (\n    !isOverlay &&\n    (IS_MOBILE_RUNTIME ||\n",
+    "  const usesMobileRail = useUsesNavigationRail();\n"
+    "  if (\n    !isOverlay &&\n    ((IS_MOBILE_RUNTIME && !usesMobileRail) ||\n",
+)
+replace(
+    "src/lib/useSidebarDrawer.ts",
+    'import { IS_MOBILE_RUNTIME } from "./platform";\n',
+    'import { IS_MOBILE_RUNTIME } from "./platform";\nimport { useUsesNavigationRail } from "./windowSizeClass";\n',
+)
+replace(
+    "src/lib/useSidebarDrawer.ts",
+    "  return IS_MOBILE_RUNTIME || narrow || ",
+    "  const usesRail = useUsesNavigationRail();\n  return (IS_MOBILE_RUNTIME && !usesRail) || narrow || ",
+)
+
+# Player: a tap on the video shows or hides the controls, and a finger touching down or lifting
+# must not do that by itself.
+replace(
+    "src/components/player/Player.tsx",
+    "  const handlePointerEnter = useCallback(() => {\n    pointerInsideRef.current = true;\n    revealControls();\n  }, [revealControls]);\n",
+    "  // On a touchscreen a tap on the video shows or hides the controls; a finger touching down or\n"
+    "  // lifting must not do that on its own.\n"
+    "  const toggleControlsOnTap = () => {\n"
+    "    if (shouldShowControls) {\n"
+    "      clearHideTimer();\n"
+    "      setControlsVisible(false);\n"
+    "    } else {\n"
+    "      revealControls();\n"
+    "    }\n"
+    "  };\n"
+    "\n"
+    "  const handlePointerEnter = useCallback((event: React.PointerEvent) => {\n"
+    "    if (event.pointerType === \"touch\") return;\n"
+    "    pointerInsideRef.current = true;\n"
+    "    revealControls();\n"
+    "  }, [revealControls]);\n",
+)
+replace(
+    "src/components/player/Player.tsx",
+    "  const handlePointerLeave = useCallback(() => {\n    pointerInsideRef.current = false;\n",
+    "  const handlePointerLeave = useCallback((event: React.PointerEvent) => {\n"
+    "    if (event.pointerType === \"touch\") return;\n"
+    "    pointerInsideRef.current = false;\n",
+)
+replace(
+    "src/components/player/Player.tsx",
+    "      onPointerEnter={handlePointerEnter}\n      onPointerMove={revealControls}\n      onPointerDown={revealControls}\n",
+    "      onPointerEnter={handlePointerEnter}\n"
+    "      onPointerMove={(event) => {\n"
+    "        if (event.pointerType !== \"touch\") revealControls();\n"
+    "      }}\n"
+    "      onPointerDown={(event) => {\n"
+    "        if (event.pointerType !== \"touch\") revealControls();\n"
+    "      }}\n",
+)
+replace(
+    "src/components/player/Player.tsx",
+    "      <PlayerGestureOverlay\n",
+    "      <PlayerGestureOverlay\n        onTapToggleControls={toggleControlsOnTap}\n",
+)
+replace(
+    "src/components/player/gesture/overlay.tsx",
+    "  togglePlay: () => void;\n",
+    "  togglePlay: () => void;\n  /** On a touchscreen a single tap shows or hides the controls instead of pausing. */\n  onTapToggleControls?: () => void;\n",
+)
+replace(
+    "src/components/player/gesture/overlay.tsx",
+    "  togglePlay,\n",
+    "  togglePlay,\n  onTapToggleControls,\n",
+)
+replace(
+    "src/components/player/gesture/overlay.tsx",
+    "      clickTimerRef.current = null;\n      toggledByFirstClickRef.current = true;\n      togglePlay();\n",
+    "      clickTimerRef.current = null;\n"
+    "      if (IS_MOBILE_RUNTIME && onTapToggleControls) {\n"
+    "        onTapToggleControls();\n"
+    "        return;\n"
+    "      }\n"
+    "      toggledByFirstClickRef.current = true;\n"
+    "      togglePlay();\n",
+)
+
+# Player controls: large previous / play / next in the middle of the video, like Android.
+replace(
+    "src/components/player/FlowPlayerControls.tsx",
+    '} from "../../lib/playerProgress";\n',
+    '} from "../../lib/playerProgress";\nimport { IS_MOBILE_RUNTIME } from "../../lib/platform";\n',
+)
+replace(
+    "src/components/player/FlowPlayerControls.tsx",
+    '      <div\n        className={cx(\n          "pointer-events-none absolute inset-0 z-20 flex h-full w-full flex-col justify-end',
+    """      {IS_MOBILE_RUNTIME && (
+        <div
+          className={cx(
+            "pointer-events-none absolute inset-0 z-20 flex items-center justify-center gap-10 transition-opacity duration-200",
+            shouldShowControls ? "opacity-100" : "opacity-0",
+          )}
+        >
+          {showNextPrevious && (
+            <button
+              type="button"
+              title={getString('previous')}
+              onClick={playPrevious}
+              className={cx(
+                "grid h-14 w-14 place-items-center rounded-full bg-chrome-black/45 text-chrome-white transition-transform active:scale-90",
+                shouldShowControls ? "pointer-events-auto" : "pointer-events-none",
+              )}
+            >
+              <SkipBack size={28} fill="currentColor" />
+            </button>
+          )}
+          <button
+            type="button"
+            title={isPlaying ? "Pause" : "Play"}
+            onClick={togglePlay}
+            className={cx(
+              "grid h-[72px] w-[72px] place-items-center rounded-full bg-chrome-black/45 text-chrome-white transition-transform active:scale-90",
+              shouldShowControls ? "pointer-events-auto" : "pointer-events-none",
+            )}
+          >
+            {isPlaying ? (
+              <Pause size={38} fill="currentColor" />
+            ) : (
+              <Play size={38} fill="currentColor" className="ml-1" />
+            )}
+          </button>
+          {showNextPrevious && (
+            <button
+              type="button"
+              onClick={() => playNext()}
+              className={cx(
+                "grid h-14 w-14 place-items-center rounded-full bg-chrome-black/45 text-chrome-white transition-transform active:scale-90",
+                shouldShowControls ? "pointer-events-auto" : "pointer-events-none",
+              )}
+            >
+              <SkipForward size={28} fill="currentColor" />
+            </button>
+          )}
+        </div>
+      )}
+      <div
+        className={cx(
+          "pointer-events-none absolute inset-0 z-20 flex h-full w-full flex-col justify-end""",
+)
+replace(
+    "src/components/player/FlowPlayerControls.tsx",
+    '<div className="flex items-center justify-between gap-3">',
+    '<div data-touch-bar className="flex items-center justify-between gap-3">',
+)
+with open("src/App.css", "a", encoding="utf-8", newline="\n") as css:
+    css.write(
+        "\n/* Player controls on a touchscreen: bigger targets, a visible seek knob, no volume slider. */\n"
+        "@media (hover: none) {\n"
+        "  [data-progress-track] {\n"
+        "    height: 2.75rem !important;\n"
+        "  }\n"
+        '  [data-progress-track] [class*="group-hover/seekbar:scale-100"] {\n'
+        "    scale: 1 !important;\n"
+        "    transform: scale(1) !important;\n"
+        "  }\n"
+        "  [data-touch-bar] .h-7.w-7 {\n"
+        "    width: 2.5rem;\n"
+        "    height: 2.5rem;\n"
+        "  }\n"
+        "  [data-touch-bar] .group\\/volume {\n"
+        "    display: none !important;\n"
+        "  }\n"
+        "}\n"
+    )
+print("patched src/App.css (player controls)")
 print("ios-ui: done")
