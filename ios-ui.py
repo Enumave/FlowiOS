@@ -648,4 +648,173 @@ replace(
     '        ) : (\n          <kbd className="hidden shrink-0',
     '        ) : IS_MOBILE_RUNTIME ? null : (\n          <kbd className="hidden shrink-0',
 )
+# 13. Android's tablet watch page: the video runs edge to edge, the channel row puts Subscribe at the
+#     far end, the action buttons scroll in one row, the related videos are large cards, and the
+#     video has an overlay top row (collapse, settings). The page also clears iPadOS's multitasking
+#     button at the top centre.
+replace(
+    "src/App.tsx",
+    '        paddingTop: "env(safe-area-inset-top, 0px)",\n',
+    '        paddingTop: "max(env(safe-area-inset-top, 0px), 22px)",\n',
+)
+replace(
+    "src/components/watch/WatchLayout.tsx",
+    'import type { WatchLayoutProps } from "./types";\n',
+    'import type { WatchLayoutProps } from "./types";\nimport { IS_MOBILE_RUNTIME } from "../../lib/platform";\n',
+)
+replace(
+    "src/components/watch/WatchLayout.tsx",
+    '            : "max-w-[1800px] px-4 pt-4 md:px-6 md:pt-6 lg:grid-cols-[1fr_400px]",\n',
+    '            : IS_MOBILE_RUNTIME\n'
+    '            ? "max-w-full px-0 pt-0 lg:grid-cols-[minmax(0,1fr)_400px]"\n'
+    '            : "max-w-[1800px] px-4 pt-4 md:px-6 md:pt-6 lg:grid-cols-[1fr_400px]",\n',
+)
+replace(
+    "src/components/watch/WatchLayout.tsx",
+    '            "relative z-[31] flex w-full min-w-0 flex-col gap-5 lg:row-start-2",\n',
+    '            "relative z-[31] flex w-full min-w-0 flex-col gap-5 lg:row-start-2",\n'
+    '            IS_MOBILE_RUNTIME && "px-4",\n',
+)
+replace(
+    "src/components/watch/WatchLayout.tsx",
+    '            "relative z-[31] flex w-full min-h-0 flex-col gap-5 overscroll-contain lg:sticky lg:top-6 lg:max-h-[calc(100vh-6.5rem)] lg:self-start lg:overflow-y-auto lg:p-2",\n',
+    '            "relative z-[31] flex w-full min-h-0 flex-col gap-5 overscroll-contain lg:sticky lg:top-6 lg:max-h-[calc(100vh-6.5rem)] lg:self-start lg:overflow-y-auto lg:p-2",\n'
+    '            IS_MOBILE_RUNTIME && "px-4",\n',
+)
+replace(
+    "src/components/watch/WatchPlayerSlot.tsx",
+    'import { useAppSettingsStore } from "../../store/useAppSettingsStore";\n',
+    'import { useAppSettingsStore } from "../../store/useAppSettingsStore";\nimport { IS_MOBILE_RUNTIME } from "../../lib/platform";\n',
+)
+replace(
+    "src/components/watch/WatchPlayerSlot.tsx",
+    '          : "relative w-full aspect-video overflow-hidden rounded-xl bg-chrome-black"\n',
+    '          : IS_MOBILE_RUNTIME\n'
+    '          ? "relative w-full aspect-video overflow-hidden bg-chrome-black"\n'
+    '          : "relative w-full aspect-video overflow-hidden rounded-xl bg-chrome-black"\n',
+)
+replace(
+    "src/components/watch/GlobalVideoPlayer.tsx",
+    'import { FullscreenPanelHost } from "./FullscreenPanelHost";\n',
+    'import { FullscreenPanelHost } from "./FullscreenPanelHost";\nimport { IS_MOBILE_RUNTIME } from "../../lib/platform";\n',
+)
+replace(
+    "src/components/watch/GlobalVideoPlayer.tsx",
+    '            : "fixed z-30 rounded-xl bg-chrome-black"\n',
+    '            : IS_MOBILE_RUNTIME\n'
+    '            ? "fixed z-30 bg-chrome-black"\n'
+    '            : "fixed z-30 rounded-xl bg-chrome-black"\n',
+)
+replace(
+    "src/components/watch/WatchMetadata.tsx",
+    'import { youtubeWatchUrl } from "../../lib/youtubeUrl";\n',
+    'import { youtubeWatchUrl } from "../../lib/youtubeUrl";\nimport { IS_MOBILE_RUNTIME } from "../../lib/platform";\n',
+)
+replace(
+    "src/components/watch/WatchMetadata.tsx",
+    '      <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">\n',
+    '      <div\n'
+    '        className={\n'
+    '          IS_MOBILE_RUNTIME ? "flex flex-col gap-3" : "flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between"\n'
+    '        }\n'
+    '      >\n',
+)
+replace(
+    "src/components/watch/WatchMetadata.tsx",
+    '        <div className="flex flex-wrap items-center gap-2">\n',
+    '        <div\n'
+    '          className={\n'
+    '            IS_MOBILE_RUNTIME\n'
+    '              ? "flex flex-nowrap items-center gap-2 overflow-x-auto pb-1 [scrollbar-width:none] [&>*]:shrink-0"\n'
+    '              : "flex flex-wrap items-center gap-2"\n'
+    '          }\n'
+    '        >\n',
+)
+replace(
+    "src/components/watch/WatchOwner.tsx",
+    'import { joinIsolated } from "../../lib/direction";\n',
+    'import { joinIsolated } from "../../lib/direction";\nimport { IS_MOBILE_RUNTIME } from "../../lib/platform";\n',
+)
+replace(
+    "src/components/watch/WatchOwner.tsx",
+    '      <div className="flex shrink-0 items-center gap-3">\n        <button onClick={() => goToChannel(channelId)} className="transition-opacity hover:opacity-80">\n',
+    '      <div className={IS_MOBILE_RUNTIME ? "flex w-full items-center gap-3" : "flex shrink-0 items-center gap-3"}>\n'
+    '        <button onClick={() => goToChannel(channelId)} className="transition-opacity hover:opacity-80">\n',
+)
+replace(
+    "src/components/watch/WatchOwner.tsx",
+    '<button onClick={() => goToChannel(channelId)} className="min-w-0 pe-2 text-start">',
+    '<button\n'
+    '          onClick={() => goToChannel(channelId)}\n'
+    '          className={IS_MOBILE_RUNTIME ? "min-w-0 flex-1 pe-2 text-start" : "min-w-0 pe-2 text-start"}\n'
+    '        >',
+)
+replace(
+    "src/components/watch/RelatedVideos.tsx",
+    'import type { RelatedVideosProps } from "./types";\n',
+    'import type { RelatedVideosProps } from "./types";\nimport { IS_MOBILE_RUNTIME } from "../../lib/platform";\n',
+)
+replace(
+    "src/components/watch/RelatedVideos.tsx",
+    '            variant="compact"\n',
+    '            variant={IS_MOBILE_RUNTIME ? "default" : "compact"}\n',
+)
+replace(
+    "src/components/player/FlowPlayerControls.tsx",
+    "  Pause,\n  PictureInPicture2,\n",
+    "  ChevronDown,\n  Pause,\n  PictureInPicture2,\n",
+)
+replace(
+    "src/components/player/FlowPlayerControls.tsx",
+    'import { IS_MOBILE_RUNTIME } from "../../lib/platform";\n',
+    'import { IS_MOBILE_RUNTIME } from "../../lib/platform";\nimport { useTabsStore } from "../../store/useTabsStore";\n',
+)
+replace(
+    "src/components/player/FlowPlayerControls.tsx",
+    '      {IS_MOBILE_RUNTIME && (\n        <div\n          className={cx(\n            "pointer-events-none absolute inset-0 z-20 flex items-center justify-center gap-10',
+    """      {IS_MOBILE_RUNTIME && (
+        <div
+          className={cx(
+            "pointer-events-none absolute inset-x-0 top-0 z-20 flex items-center justify-between px-3 pt-3 transition-opacity duration-200",
+            shouldShowControls ? "opacity-100" : "opacity-0",
+          )}
+        >
+          <button
+            type="button"
+            title={getString('topbar_back')}
+            aria-label={getString('topbar_back')}
+            onClick={() => {
+              if (isFullscreen) toggleFullscreen();
+              else useTabsStore.getState().go(-1);
+            }}
+            className={cx(
+              "grid h-10 w-10 place-items-center rounded-full bg-chrome-black/45 text-chrome-white transition-transform active:scale-90",
+              shouldShowControls ? "pointer-events-auto" : "pointer-events-none",
+            )}
+          >
+            <ChevronDown size={26} />
+          </button>
+          <button
+            type="button"
+            {...{ [PLAYER_MENU_OWNER_ATTR]: "" }}
+            title={getString("player_menu_settings")}
+            aria-label={getString("player_menu_settings")}
+            onClick={() => {
+              setSettingsOpen((value) => !value);
+              setSettingsPane("root");
+            }}
+            className={cx(
+              "grid h-10 w-10 place-items-center rounded-full bg-chrome-black/45 text-chrome-white transition-transform active:scale-90",
+              shouldShowControls ? "pointer-events-auto" : "pointer-events-none",
+            )}
+          >
+            <SettingsIcon size={22} />
+          </button>
+        </div>
+      )}
+      {IS_MOBILE_RUNTIME && (
+        <div
+          className={cx(
+            "pointer-events-none absolute inset-0 z-20 flex items-center justify-center gap-10""",
+)
 print("ios-ui: done")
