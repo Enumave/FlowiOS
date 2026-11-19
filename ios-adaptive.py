@@ -134,7 +134,10 @@ replace(
     '          wide && "lg:grid-rows-[auto_1fr]",\n'
     "          isTheaterMode\n"
     '            ? cx("max-w-full px-0 pt-0", wide && "lg:grid-cols-[minmax(0,1fr)_minmax(0,1100px)_400px_minmax(0,1fr)]")\n'
-    '            : cx("max-w-[1800px] px-4 pt-4 md:px-6 md:pt-6", wide && "lg:grid-cols-[1fr_400px]"),\n',
+    '            : cx(\n'
+    '                IS_ADAPTIVE_LAYOUT ? "max-w-full px-0 pt-0" : "max-w-[1800px] px-4 pt-4 md:px-6 md:pt-6",\n'
+    '                wide && "lg:grid-cols-[1fr_400px]",\n'
+    '              ),\n',
 )
 replace(
     WL,
@@ -150,7 +153,8 @@ replace(
     '            isTheaterMode ? "lg:col-start-2" : "lg:col-start-1",\n',
     '            "relative z-[31] flex w-full min-w-0 flex-col gap-5",\n'
     '            wide && "lg:row-start-2",\n'
-    '            wide && (isTheaterMode ? "lg:col-start-2" : "lg:col-start-1"),\n',
+    '            wide && (isTheaterMode ? "lg:col-start-2" : "lg:col-start-1"),\n'
+    '            IS_ADAPTIVE_LAYOUT && "px-4",\n',
 )
 replace(
     WL,
@@ -158,7 +162,8 @@ replace(
     '            isTheaterMode ? "lg:col-start-3 lg:row-start-2" : "lg:col-start-2 lg:row-span-2 lg:row-start-1",\n',
     '            "relative z-[31] flex w-full min-h-0 flex-col gap-5 overscroll-contain",\n'
     '            wide && "lg:sticky lg:top-6 lg:max-h-[calc(100vh-6.5rem)] lg:self-start lg:overflow-y-auto lg:p-2",\n'
-    '            wide && (isTheaterMode ? "lg:col-start-3 lg:row-start-2" : "lg:col-start-2 lg:row-span-2 lg:row-start-1"),\n',
+    '            wide && (isTheaterMode ? "lg:col-start-3 lg:row-start-2" : "lg:col-start-2 lg:row-span-2 lg:row-start-1"),\n'
+    '            IS_ADAPTIVE_LAYOUT && "px-4",\n',
 )
 
 # 5. Settings: a list beside the page on expanded windows, a list and then a page otherwise.
