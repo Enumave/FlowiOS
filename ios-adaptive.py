@@ -1,21 +1,12 @@
 #!/usr/bin/env python3
 """Give Flow Desktop the phone and tablet layouts of Flow for Android.
 
-Run from the repository root, after `ios-port.py` and `ios-ui.py`, before `pnpm build` /
+Run from the repository root, after `ios-port.py` and `ios-ui.py` (it builds on the bottom bar,
+rail rule and phone top bar that `ios-ui.py` already adds), before `pnpm build` /
 `tauri ios build`. The layout rules themselves are ordinary source files in the repo
 (`src/lib/adaptive/`, `AdaptiveNavigation.tsx`, `AdaptiveTopbar.tsx`); this script only wires them
 into the pages that already exist. Every edit is an exact-text replacement and the script stops
 with an error if a snippet is not found, so a changed upstream file shows up as a clear failure.
-
-What it wires up, by window size (the window, not the display, so Split View and Stage Manager
-windows lay out like the narrow device they behave as):
-
-  compact  (< 600)           bottom bar, phone top bar, one column of cards, Settings as list -> page
-  medium   (600-839)         bottom bar, two-column feed, single-column Watch with room for a grid
-  expanded (>= 840)          start-edge rail, inline search, up to three columns, Settings list + page,
-                             Watch split in two when the window is wider than tall
-  large    (>= 1200)         the rail may open to show labels beside its icons
-  phone on its side          rail too: a bottom bar would take a sixth of the height
 """
 import sys
 
@@ -71,7 +62,22 @@ replace(
     'import { IS_MOBILE_RUNTIME } from "./platform";\n',
     'import { IS_MOBILE_RUNTIME } from "./platform";\nimport { IS_ADAPTIVE_LAYOUT } from "./adaptive/runtime";\n',
 )
-replace(DRAWER, "  return IS_MOBILE_RUNTIME || narrow", "  return IS_ADAPTIVE_LAYOUT || IS_MOBILE_RUNTIME || narrow")
+# ios-ui.py's own rule keeps the drawer for phones only; the rail's menu button needs it too.
+replace(
+    DRAWER,
+    "  return (IS_MOBILE_RUNTIME && !usesRail) || narrow",
+    "  return IS_ADAPTIVE_LAYOUT || (IS_MOBILE_RUNTIME && !usesRail) || narrow",
+)
+
+# ios-ui.py's rail rule only counts heights of 480-899, so an iPad Pro held upright (1366 tall)
+# would get the bottom bar. Android counts every height from 480 up; hand everything that asks
+# "rail or bar?" the same answer the new navigation uses.
+with open("src/lib/windowSizeClass.ts", "w", encoding="utf-8", newline="\n") as shim:
+    shim.write(
+        '// Rail-or-bar rule shared with Flow for Android; see src/lib/adaptive.\n'
+        'export { useUsesNavigationRail } from "./adaptive/useWindowSizeClass";\n'
+    )
+print("wrote src/lib/windowSizeClass.ts")
 
 # 3. Feed grids: one column on a phone, two on a medium window, up to three on a tablet.
 GRID = "src/lib/useGridColumns.ts"
