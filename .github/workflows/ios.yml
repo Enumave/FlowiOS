@@ -33,6 +33,9 @@ jobs:
       - name: Apply iPad interface changes
         run: python3 ios-ui.py
 
+      - name: Apply phone and tablet layouts from Flow for Android
+        run: python3 ios-adaptive.py
+
       - name: Generate iOS project
         run: pnpm tauri ios init --ci
 
