@@ -648,38 +648,14 @@ replace(
     '        ) : (\n          <kbd className="hidden shrink-0',
     '        ) : IS_MOBILE_RUNTIME ? null : (\n          <kbd className="hidden shrink-0',
 )
-# 13. Android's tablet watch page: the video runs edge to edge, the channel row puts Subscribe at the
-#     far end, the action buttons scroll in one row, the related videos are large cards, and the
+# 13. Android's tablet watch page (the page layout itself is in ios-adaptive.py): the video runs edge
+#     to edge, the channel row puts Subscribe at the far end, the action buttons scroll in one row, the related videos are large cards, and the
 #     video has an overlay top row (collapse, settings). The page also clears iPadOS's multitasking
 #     button at the top centre.
 replace(
     "src/App.tsx",
     '        paddingTop: "env(safe-area-inset-top, 0px)",\n',
     '        paddingTop: "max(env(safe-area-inset-top, 0px), 22px)",\n',
-)
-replace(
-    "src/components/watch/WatchLayout.tsx",
-    'import type { WatchLayoutProps } from "./types";\n',
-    'import type { WatchLayoutProps } from "./types";\nimport { IS_MOBILE_RUNTIME } from "../../lib/platform";\n',
-)
-replace(
-    "src/components/watch/WatchLayout.tsx",
-    '            : "max-w-[1800px] px-4 pt-4 md:px-6 md:pt-6 lg:grid-cols-[1fr_400px]",\n',
-    '            : IS_MOBILE_RUNTIME\n'
-    '            ? "max-w-full px-0 pt-0 lg:grid-cols-[minmax(0,1fr)_400px]"\n'
-    '            : "max-w-[1800px] px-4 pt-4 md:px-6 md:pt-6 lg:grid-cols-[1fr_400px]",\n',
-)
-replace(
-    "src/components/watch/WatchLayout.tsx",
-    '            "relative z-[31] flex w-full min-w-0 flex-col gap-5 lg:row-start-2",\n',
-    '            "relative z-[31] flex w-full min-w-0 flex-col gap-5 lg:row-start-2",\n'
-    '            IS_MOBILE_RUNTIME && "px-4",\n',
-)
-replace(
-    "src/components/watch/WatchLayout.tsx",
-    '            "relative z-[31] flex w-full min-h-0 flex-col gap-5 overscroll-contain lg:sticky lg:top-6 lg:max-h-[calc(100vh-6.5rem)] lg:self-start lg:overflow-y-auto lg:p-2",\n',
-    '            "relative z-[31] flex w-full min-h-0 flex-col gap-5 overscroll-contain lg:sticky lg:top-6 lg:max-h-[calc(100vh-6.5rem)] lg:self-start lg:overflow-y-auto lg:p-2",\n'
-    '            IS_MOBILE_RUNTIME && "px-4",\n',
 )
 replace(
     "src/components/watch/WatchPlayerSlot.tsx",
