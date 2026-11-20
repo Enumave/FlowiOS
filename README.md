@@ -12,6 +12,8 @@
 
 > FlowiOS is under active development and is not related to the main developer and the main project **THIS IS A COMMUNITY FORK**. Features and storage formats may change frequently. Do approach this fork with your own risk as this is again, **a personal test project** fully vibecoded by Claude AI and a random guy on the internet using his own free account.
 
+**I do not receive any donations or funds doing this, i am just a single person that wanted to use this app on my device, please do donate to the [Main Developer](https://github.com/Flow-Tube#support-the-development)
+
 ---
 
 ## Features
@@ -53,7 +55,7 @@ Flow still contacts YouTube and optional services such as SponsorBlock, DeArrow,
 
 
 <a id="support--donations"></a>
-## Support & donations
+## Support & donations to the Main Dev
 
 Flow is free and open-source software maintained by an independent developer. Patreon supports card, PayPal, Apple Pay, recurring support, and one-time tips.
 
