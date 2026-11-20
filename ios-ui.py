@@ -1031,5 +1031,42 @@ replace(
     "            </div>\n          </div>\n        </div>\n      </div>\n\n      <PlayerSettingsMenu\n",
     "            </div>\n          </div>\n          )}\n        </div>\n      </div>\n\n      <PlayerSettingsMenu\n",
 )
-
+# 15. Player fixes: no rounded corners on the video surface, whole-second swipe seeking (the seek
+#     read-out showed the raw fraction), and the seek bar flush with the bottom edge like Android's.
+replace(
+    "src/components/player/Player.tsx",
+    '"max-h-[calc(100vh-160px)] min-h-[480px] rounded-none" : "rounded-xl",\n',
+    '"max-h-[calc(100vh-160px)] min-h-[480px] rounded-none" : IS_MOBILE_RUNTIME ? "rounded-none" : "rounded-xl",\n',
+)
+replace(
+    "src/components/player/Player.tsx",
+    '"flex items-center justify-center rounded-none" : "rounded-xl",\n',
+    '"flex items-center justify-center rounded-none" : IS_MOBILE_RUNTIME ? "rounded-none" : "rounded-xl",\n',
+)
+replace(
+    "src/components/player/gesture/touchGestures.ts",
+    "        if (!cancelled && lastPreview) latest.current.seekBy(lastPreview.delta);\n",
+    "        if (!cancelled && lastPreview) {\n"
+    "          const seconds = Math.round(lastPreview.delta);\n"
+    "          if (seconds !== 0) latest.current.seekBy(seconds);\n"
+    "        }\n",
+)
+replace(
+    PLAYER_FILE,
+    '            ? "px-0 pb-0"\n',
+    '            ? isFullscreen\n'
+    '              ? "px-10 pb-7"\n'
+    '              : "px-0 pb-0"\n',
+)
+with open("src/App.css", "a", encoding="utf-8", newline="\n") as css:
+    css.write(
+        "\n/* The seek bar sits on the bottom edge of the video, as on Android; the touch area reaches up. */\n"
+        "@media (hover: none) {\n"
+        "  [data-progress-track] {\n"
+        "    height: 2.5rem !important;\n"
+        "    margin-bottom: -1.1rem;\n"
+        "  }\n"
+        "}\n"
+    )
+print("patched src/App.css (seek bar position)")
 print("ios-ui: done")
