@@ -11,7 +11,8 @@ import { SETTINGS } from "../../lib/settings/schema";
 import { FlowPlayerCore } from "./FlowPlayerCore";
 import { decideRouteChangePlayerAction, watchVideoIdFromPath } from "../../lib/watchRouteSync";
 import { expandPlayerInOwnerTab } from "../../lib/tabs/tabPlayback";
-import { useTabsStore } from "../../store/useTabsStore";
+import { activeTab, useTabsStore } from "../../store/useTabsStore";
+import { MINIMIZE_REQUEST_EVENT } from "../../lib/playerSheet";
 import { useMediaSessionMetadata } from "../../lib/useMediaSessionMetadata";
 import { glideFrame } from "../../lib/theaterGlide";
 import { FullscreenPanelHost } from "./FullscreenPanelHost";
@@ -245,6 +246,21 @@ export function GlobalVideoPlayer() {
     return () => window.removeEventListener("flow-video-expand-request", expandFromFloating);
   }, [expandFromFloating]);
 
+  // Swiping the watch page's player down: the video goes to the mini player first, so leaving the
+  // page does not stop it, and the page it was opened from comes back underneath.
+  const minimizeFromWatch = useCallback(() => {
+    if (!currentVideo) return;
+    enterVideoPip("manual");
+    if (!watchVideoIdFromPath(location.pathname)) return;
+    const tabs = useTabsStore.getState();
+    if (activeTab(tabs).index > 0) tabs.go(-1);
+    else navigate("/");
+  }, [currentVideo, enterVideoPip, location.pathname, navigate]);
+
+  useEffect(() => {
+    window.addEventListener(MINIMIZE_REQUEST_EVENT, minimizeFromWatch);
+    return () => window.removeEventListener(MINIMIZE_REQUEST_EVENT, minimizeFromWatch);
+  }, [minimizeFromWatch]);
   const miniPlayerSize = useAppSettingsStore((state) => state.values[SETTINGS.MINI_PLAYER_SIZE]);
   const frameStyle = useMemo(() => {
     if (isVideoFullscreen) {
@@ -335,6 +351,7 @@ export function GlobalVideoPlayer() {
     <>
       <div
         ref={frameRef}
+        data-flow-player-frame=""
         onWheel={handleWheel}
         className={
           isVideoFullscreen
