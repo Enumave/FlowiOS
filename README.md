@@ -10,7 +10,7 @@
   [**Downloads**](https://github.com/Flow-Tube/Flow-Desktop/releases) · [**Android app**](https://github.com/Flow-Tube/Flow) · [**Community**](https://www.reddit.com/r/Flow_Official/) · [**Support development**](#support--donations)
 </div>
 
-> Flow Desktop is under active development. Features and storage formats may change before the first stable release.
+> FlowiOS is under active development and is not related to the main developer and the main project **THIS IS A COMMUNITY FORK**. Features and storage formats may change frequently. Do approach this fork with your own risk as this is again, **a personal test project** fully vibecoded by Claude AI and a random guy on the internet using his own free account.
 
 ---
 
@@ -46,93 +46,11 @@ Flow still contacts YouTube and optional services such as SponsorBlock, DeArrow,
 
 ---
 
-## Downloads and supported systems
+## Releases and Downloads
 
-Release builds are published through [GitHub Releases](https://github.com/Flow-Tube/Flow-Desktop/releases).
+- For obvious reasons there will be no .ipa provided.
+- You could fork this and build it on yourself
 
-- **Stable:** reviewed releases intended for normal use.
-- **Beta / RC:** public GitHub prereleases for wider testing. These install as **Flow Beta** with isolated application data.
-- **Nightly:** automatic snapshots from `main`. These install as **Flow Nightly**, use isolated data, and may be unstable. Download the latest packages from the [Nightly release](https://github.com/Flow-Tube/Flow-Desktop/releases/tag/nightly), which every new build replaces.
-
-| Platform | Supported versions | Architectures | Packages |
-| --- | --- | --- | --- |
-| Windows | Windows 10 22H2, Windows 11 | x64, ARM64 | NSIS installer |
-| macOS | macOS 13 Ventura or later | Intel x64, Apple Silicon | DMG |
-| Linux | Ubuntu 22.04+, Debian 12+, and comparable modern distributions | x64, ARM64 | AppImage, `.deb`, `.rpm`, Flatpak ([FlatPark](https://flatpark.org/apps/io.github.aedev.flow.desktop/)) |
-
-Linux builds require a compatible glibc, GTK 3, and WebKitGTK 4.1 environment. Legacy 32-bit systems are not supported. See [docs/LINUX.md](docs/LINUX.md) for which package to pick, graphics problems, codecs, sync and moving from Beta to Stable.
-
-### Opening Flow on macOS
-
-Flow isn't signed with an Apple Developer ID or notarized yet, so the first launch is blocked with a message such as "Apple could not verify Flow is free of malware" or "Flow is damaged and can't be opened". To open it:
-
-1. Open the DMG and drag Flow into your Applications folder. Flow can only update itself from there.
-2. In Terminal, remove the download mark macOS puts on the app:
-
-   ```sh
-   xattr -dr com.apple.quarantine /Applications/Flow.app
-   ```
-
-   For a Beta or Nightly build, use `"/Applications/Flow Beta.app"` or `"/Applications/Flow Nightly.app"`, with the quotes.
-3. Open Flow as usual.
-
-Without Terminal: try to open Flow once, then go to **System Settings > Privacy & Security**, scroll down to the message about Flow and click **Open Anyway**. Updates Flow installs itself don't need this again.
-
-### Flatpak (FlatPark)
-
-[FlatPark](https://flatpark.org/apps/io.github.aedev.flow.desktop/) offers Flow as a Flatpak. It downloads the official `.deb` from this repository's releases, unmodified, at install time, and runs it on the GNOME runtime with its codecs, so H.264, VP9 and AV1 all play. Updates come through Flatpak; Flow's own updater stays off there.
-
-```sh
-flatpak remote-add --if-not-exists flatpark https://dl.flatpark.org/flatpark.flatpakrepo
-flatpak install flatpark io.github.aedev.flow.desktop
-```
-
-FlatPark follows the latest GitHub release, betas included, and not the nightly builds. The packaging lives in the [FlatPark registry](https://github.com/flatpark/flatpark/tree/main/registry/io.github.aedev.flow.desktop), where packaging issues go.
-
-### Linux media codecs
-
-On Linux, video decoding goes through WebKitGTK and the system GStreamer plugins (Windows and macOS ship their own decoders). If audio plays but video stays frozen on a spinner, a video decoder is missing.
-
-- **AppImage** — bundles the required GStreamer codec plugins (including `gst-libav` for H.264); no system codec packages are needed.
-- **`.deb`** — declares the codec plugins as dependencies. Install with `sudo apt install ./Flow_*.deb` so they are pulled in automatically.
-- **`.rpm`** — the freely licensed plugins are hard dependencies. On Fedora, a full H.264 decoder is only available through [RPM Fusion](https://rpmfusion.org/Configuration) for patent reasons (Fedora's own OpenH264 can't decode most YouTube video): enable RPM Fusion and run `sudo dnf swap ffmpeg-free ffmpeg --allowerasing` and `sudo dnf install gstreamer1-plugin-libav`, or use the AppImage instead. Without it, Flow plays VP9, which Fedora always has.
-
-### Linux startup crashes and blank windows
-
-If the app opens to a blank or white window, that is usually the WebKitGTK DMABUF renderer failing on your graphics stack (common with NVIDIA proprietary drivers and some Wayland sessions). Flow disables it automatically and, if a launch still fails to render, **escalates GPU workarounds on the next launch on its own**: first forcing software compositing (`WEBKIT_DISABLE_COMPOSITING_MODE=1`), then falling back to X11/XWayland (`GDK_BACKEND=x11`). A clean launch resets this. You can still override any of these yourself — for example `WEBKIT_DISABLE_DMABUF_RENDERER=0` to re-enable the DMABUF renderer.
-
-If the app aborts on startup with `Could not create default EGL display: EGL_BAD_PARAMETER` (seen on some Arch-family / Mesa systems with the **AppImage**), that is a known Tauri AppImage packaging issue: a bundled `libwayland` client library conflicts with your system's newer Mesa/EGL stack. As an interim workaround, delete the bundled Wayland libraries and run the extracted app:
-
-```sh
-./Flow_*_linux_amd64.AppImage --appimage-extract
-rm squashfs-root/usr/lib/*wayland*so*
-./squashfs-root/AppRun
-```
-
-The `.deb`, `.rpm` and the FlatPark Flatpak use the system's or the runtime's own libraries and avoid this class of issue; prefer those when the AppImage fails.
-
----
-
-## Development
-
-Requirements: Node.js 22.12+, pnpm 11.9+, stable Rust, and the [Tauri 2 prerequisites](https://v2.tauri.app/start/prerequisites/) for your operating system.
-
-```sh
-pnpm install --frozen-lockfile
-pnpm tauri dev
-```
-
-Build packages for the current operating system:
-
-```sh
-pnpm test
-pnpm build
-pnpm tauri build
-```
-
-Windows, Linux, and macOS packages are built natively by the GitHub Actions release workflow. Production macOS and Windows releases should be signed and, on macOS, notarized before publication.
-
----
 
 <a id="support--donations"></a>
 ## Support & donations
