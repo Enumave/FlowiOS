@@ -1,11 +1,16 @@
 import { useEffect, useRef, type RefObject } from "react";
 import { usePlayerStore } from "../../../store/usePlayerStore";
+import { MINIMIZE_REQUEST_EVENT, SHEET_ATTR, startPlayerSheet, type PlayerSheet, type SheetAction } from "../../../lib/playerSheet";
+import { planPlayerSheet } from "../../../lib/playerSheetTargets";
 
 /** One full-width sideways drag moves the video this far, as on Android. */
 const SCRUB_SPAN_SECONDS = 90;
 /** A touch must move this far before it stops being a tap. */
 const SLOP_PX = 12;
-/** A vertical drag this long enters or leaves fullscreen. */
+/**
+ * A vertical drag this long enters or leaves fullscreen when there is no player frame to animate.
+ * Otherwise the drag moves the frame itself (see lib/playerSheet.ts) and releasing decides.
+ */
 const FULLSCREEN_DRAG_PX = 80;
 const ZOOM_MIN = 1;
 const ZOOM_MAX = 6;
@@ -22,6 +27,8 @@ type Options = {
   videoRef: RefObject<HTMLVideoElement | null>;
   seekBy: (delta: number) => void;
   toggleFullscreen: () => void;
+  /** Collapses the watch page into the mini player. Without it a request goes to the global player. */
+  minimize?: () => void;
   /** Called when a touch turns into a gesture, so a pending hold-to-speed-up is dropped. */
   onGestureStart: () => void;
   onScrub: (preview: ScrubPreview) => void;
@@ -38,8 +45,9 @@ function clamp(value: number, min: number, max: number) {
 
 /**
  * Touch gestures for the video, matching Flow for Android:
- * a sideways drag scrubs, a vertical drag enters or leaves fullscreen, and two fingers
- * pinch to zoom and pan. Taps, double taps and hold-to-speed-up stay with the overlay.
+ * a sideways drag scrubs, a vertical drag moves the player between the watch page, the mini
+ * player and fullscreen with the frame following the finger, and two fingers pinch to zoom and pan.
+ * Taps, double taps and hold-to-speed-up stay with the overlay.
  */
 export function useTouchPlayerGestures(options: Options) {
   const latest = useRef(options);
@@ -58,6 +66,7 @@ export function useTouchPlayerGestures(options: Options) {
     let baseTime = 0;
     let lastPreview: ScrubPreview = null;
     let swallowClick = false;
+    let sheet: PlayerSheet | null = null;
 
     let scale = 1;
     let offsetX = 0;
@@ -124,6 +133,23 @@ export function useTouchPlayerGestures(options: Options) {
       latest.current.onGestureStart();
     };
 
+    const commitSheet = (action: SheetAction) => {
+      if (action === "minimize") {
+        const minimize = latest.current.minimize;
+        if (minimize) minimize();
+        else window.dispatchEvent(new Event(MINIMIZE_REQUEST_EVENT));
+      } else {
+        latest.current.toggleFullscreen();
+      }
+    };
+
+    /** The player frame follows the finger; null where there is no frame to move. */
+    const startSheet = (frame: HTMLElement | null): PlayerSheet | null => {
+      if (!frame) return null;
+      const plan = planPlayerSheet(frame);
+      return plan ? startPlayerSheet({ frame, ...plan, commit: commitSheet }) : null;
+    };
+
     const onDown = (event: PointerEvent) => {
       if (event.pointerType !== "touch") return;
       if (pointers.size === 0) {
@@ -143,6 +169,8 @@ export function useTouchPlayerGestures(options: Options) {
         baseTime = video()?.currentTime ?? 0;
         mode = "pending";
       } else if (pointers.size === 2) {
+        sheet?.cancel();
+        sheet = null;
         begin("pinch");
         latest.current.onScrub(null);
         pinchStartDistance = distanceBetween();
@@ -190,7 +218,14 @@ export function useTouchPlayerGestures(options: Options) {
           }
           begin("scrub");
         } else if (Math.abs(dy) > Math.abs(dx) * 1.3) {
+          const frame = layer.closest<HTMLElement>("[data-flow-player-frame]");
           begin("vertical");
+          // The last swipe is still settling: let it finish rather than fight it.
+          if (frame?.hasAttribute(SHEET_ATTR)) {
+            mode = "done";
+            return;
+          }
+          sheet = startSheet(frame);
         } else {
           return;
         }
@@ -203,6 +238,8 @@ export function useTouchPlayerGestures(options: Options) {
         const target = clamp(baseTime + (dx / width) * SCRUB_SPAN_SECONDS, 0, element.duration);
         lastPreview = { target, delta: target - baseTime };
         latest.current.onScrub(lastPreview);
+      } else if (mode === "vertical") {
+        sheet?.update(dy, event.timeStamp);
       } else if (mode === "pan") {
         offsetX = panStartOffset.x + (event.clientX - panStart.x);
         offsetY = panStartOffset.y + (event.clientY - panStart.y);
@@ -227,7 +264,11 @@ export function useTouchPlayerGestures(options: Options) {
         lastPreview = null;
         mode = "done";
       } else if (mode === "vertical") {
-        if (!cancelled) {
+        if (sheet) {
+          if (cancelled) sheet.cancel();
+          else sheet.release();
+          sheet = null;
+        } else if (!cancelled) {
           const dy = end.y - start.y;
           const inFullscreen = usePlayerStore.getState().isVideoFullscreen;
           if (inFullscreen && dy > FULLSCREEN_DRAG_PX) latest.current.toggleFullscreen();
@@ -268,6 +309,9 @@ export function useTouchPlayerGestures(options: Options) {
       layer.removeEventListener("click", onClickCapture, true);
       layer.removeEventListener("dblclick", onClickCapture, true);
       layer.style.touchAction = "";
+      // A drag cut off by this teardown goes back; a committed one is left to finish its animation.
+      sheet?.abort();
+      sheet = null;
       latest.current.onScrub(null);
       resetZoom();
     };
