@@ -47,7 +47,7 @@ jobs:
           cp Assets/logo.png src-tauri/icons/ios/AppIcon-512@2x.png
       
       - name: Regenerate all required icon sizes
-        run: sudo apt-get update && pip install Pillow --quiet 2>/dev/null
+        run: python3 -m pip install Pillow --quiet --break-system-packages || python3 -m pip install Pillow --quiet
 
       - name: Generate iOS project  
         run: pnpm tauri ios init --ci
