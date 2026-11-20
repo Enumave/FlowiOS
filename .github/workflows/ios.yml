@@ -36,6 +36,22 @@ jobs:
       - name: Apply phone and tablet layouts from Flow for Android
         run: python3 ios-adaptive.py
 
+      - name: Inject logo.png into Tauri icons folder
+        run: |
+          mkdir -p src-tauri/icons || true
+          cp Assets/logo.png src-tauri/icons/icon.png
+
+      - name: Add iOS-specific AppIcon assets  
+        run: |
+          mkdir -p src-tauri/icons/ios 2>/dev/null || true
+          cp Assets/logo.png src-tauri/icons/ios/AppIcon-512@2x.png
+      
+      - name: Regenerate all required icon sizes
+        run: sudo apt-get update && pip install Pillow --quiet 2>/dev/null
+
+      - name: Generate iOS project  
+        run: pnpm tauri ios init --ci
+
       - name: Generate iOS project
         run: pnpm tauri ios init --ci
 
