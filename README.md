@@ -1,6 +1,6 @@
  **A privacy-respecting YouTube and YouTube Music client with a native, fully local recommendation engine.**
 
-  FlowiOS is the iOS my personal project forked from [Flow for Desktop](https://github.com/Flow-Tube/Flow-Desktop), built with Rust, Tauri, React, and TypeScript. Also a lot of Claude Coding.
+  FlowiOS is the my personal project forked from [Flow for Desktop](https://github.com/Flow-Tube/Flow-Desktop), built with Rust, Tauri, React, and TypeScript. Also a lot of Claude Coding.
 
   <p>
 <picture><source media="(prefers-color-scheme: dark)" srcset="https://assets.flow-tube.org/v1/badges/split/tauri-dark.svg"><img alt="Built with Rust · Tauri 2" src="https://assets.flow-tube.org/v1/badges/split/tauri-light.svg" height="32"></picture>
