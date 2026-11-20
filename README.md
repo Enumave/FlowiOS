@@ -7,7 +7,7 @@
   <a href="LICENSE"><picture><source media="(prefers-color-scheme: dark)" srcset="https://assets.flow-tube.org/v1/badges/split/license-dark.svg"><img alt="License: GPL-3.0" src="https://assets.flow-tube.org/v1/badges/split/license-light.svg" height="32"></picture></a>
   </p>
 
-  [**Downloads**](https://github.com/Flow-Tube/Flow-Desktop/releases) · [**Android app**](https://github.com/Flow-Tube/Flow) · [**Community**](https://www.reddit.com/r/Flow_Official/) · [**Support development**](#support--donations)
+  [**Flow Desktop**](https://github.com/Flow-Tube/Flow-Desktop/releases) · [**Android app**](https://github.com/Flow-Tube/Flow) · [**Community**](https://www.reddit.com/r/Flow_Official/) · [**Support development**](#support--donations)
 </div>
 
 > FlowiOS is under active development and is not related to the main developer and the main project **THIS IS A COMMUNITY FORK**. Features and storage formats may change frequently. Do approach this fork with your own risk as this is again, **a personal test project** fully vibecoded by Claude AI and a random guy on the internet using his own free account.
