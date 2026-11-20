@@ -1060,3 +1060,18 @@
 :root[data-app-font="custom"] body {
   font-family: "FlowCustomFont", system-ui, -apple-system, "Segoe UI", Roboto, Ubuntu, Cantarell, "Noto Sans Arabic", "Noto Naskh Arabic", sans-serif;
 }
+
+/*
+  The player frame follows a vertical swipe (lib/playerSheet.ts). Its controls fade out for as long
+  as it is in motion, so they never stretch with it, and the watch page's "playing in mini player"
+  cover stays out of sight while the frame leaves the slot.
+*/
+[data-flow-player-frame][data-flow-sheet] #flow-player-root > [data-player-ambient],
+[data-flow-player-frame][data-flow-sheet] [data-player-content] > :not(video) {
+  opacity: 0 !important;
+  transition: opacity 90ms linear !important;
+}
+
+body[data-flow-sheet-settling] [data-flow-watch-player-slot="true"] > button {
+  display: none;
+}
