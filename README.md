@@ -1,5 +1,3 @@
- **A privacy-respecting YouTube and YouTube Music client with a native, fully local recommendation engine.**
-
   FlowiOS is the my personal project forked from [Flow for Desktop](https://github.com/Flow-Tube/Flow-Desktop), built with Rust, Tauri, React, and TypeScript. Also a lot of Claude Coding.
 
   <p>
@@ -11,6 +9,7 @@
 </div>
 
 > FlowiOS is under active development and is not related to the main developer and the main project **THIS IS A COMMUNITY FORK**. Features and storage formats may change frequently. Do approach this fork with your own risk as this is again, **a personal test project** fully vibecoded by Claude AI and a random guy on the internet using his own free account.
+> This project would be abandoned once the official version comes out, do keep that in mind.
 
 **I do not receive any donations or funds doing this, i am just a single person that wanted to use this app on my device, please do donate to the [Main Developer](https://github.com/Flow-Tube#support-the-development)**
 
