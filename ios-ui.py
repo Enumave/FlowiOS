@@ -793,4 +793,243 @@ replace(
           className={cx(
             "pointer-events-none absolute inset-0 z-20 flex items-center justify-center gap-10""",
 )
+# 14. The player's controls the way Flow for Android draws them (see its PlayerBottomBar): bare icons
+#     on a soft top scrim with collapse on the left and AirPlay and settings on the right, a quiet
+#     previous / play / next in the middle, and along the bottom a row of pills (time, chapter,
+#     quality, fullscreen) sitting on a seek bar that runs edge to edge. The desktop button row
+#     is not drawn on touch devices.
+PLAYER_FILE = "src/components/player/FlowPlayerControls.tsx"
+
+
+def replace_between(rel, start, end, new):
+    with open(rel, encoding="utf-8") as f:
+        text = f.read()
+    if text.count(start) != 1 or text.count(end) != 1:
+        sys.exit(f"ios-ui: {rel}: markers found {text.count(start)} / {text.count(end)} for:\n{start}\n...\n{end}")
+    a = text.index(start)
+    b = text.index(end)
+    if b < a:
+        sys.exit(f"ios-ui: {rel}: end marker comes before start marker")
+    with open(rel, "w", encoding="utf-8", newline="\n") as f:
+        f.write(text[:a] + new + text[b:])
+    print(f"patched {rel} (block)")
+
+
+replace(PLAYER_FILE, "  ChevronDown,\n  Pause,\n", "  Airplay,\n  ChevronDown,\n  Pause,\n")
+replace_between(
+    PLAYER_FILE,
+    '      {IS_MOBILE_RUNTIME && (\n        <div\n          className={cx(\n            "pointer-events-none absolute inset-x-0 top-0 z-20',
+    '      <div\n        className={cx(\n          "pointer-events-none absolute inset-0 z-20 flex h-full w-full flex-col justify-end',
+    """      {IS_MOBILE_RUNTIME && (
+        <div
+          className={cx(
+            "pointer-events-none absolute inset-x-0 top-0 z-20 flex items-center justify-between bg-gradient-to-b from-chrome-black/55 to-transparent px-2 pb-6 pt-2 transition-opacity duration-200",
+            shouldShowControls ? "opacity-100" : "opacity-0",
+          )}
+        >
+          <button
+            type="button"
+            title={getString('topbar_back')}
+            aria-label={getString('topbar_back')}
+            onClick={() => {
+              if (isFullscreen) toggleFullscreen();
+              else useTabsStore.getState().go(-1);
+            }}
+            className={cx(
+              "grid h-11 w-11 place-items-center text-chrome-white drop-shadow-md transition-transform active:scale-90",
+              shouldShowControls ? "pointer-events-auto" : "pointer-events-none",
+            )}
+          >
+            <ChevronDown size={30} />
+          </button>
+          <div className="flex items-center">
+            {"webkitShowPlaybackTargetPicker" in HTMLVideoElement.prototype && (
+              <button
+                type="button"
+                title="AirPlay"
+                aria-label="AirPlay"
+                onClick={() => {
+                  const video = containerRef.current?.querySelector("video") as
+                    | (HTMLVideoElement & { webkitShowPlaybackTargetPicker?: () => void })
+                    | null
+                    | undefined;
+                  video?.webkitShowPlaybackTargetPicker?.();
+                }}
+                className={cx(
+                  "grid h-11 w-11 place-items-center text-chrome-white drop-shadow-md transition-transform active:scale-90",
+                  shouldShowControls ? "pointer-events-auto" : "pointer-events-none",
+                )}
+              >
+                <Airplay size={24} />
+              </button>
+            )}
+            <button
+              type="button"
+              {...{ [PLAYER_MENU_OWNER_ATTR]: "" }}
+              title={getString("player_menu_settings")}
+              aria-label={getString("player_menu_settings")}
+              onClick={() => {
+                setSettingsOpen((value) => !value);
+                setSettingsPane("root");
+              }}
+              className={cx(
+                "grid h-11 w-11 place-items-center text-chrome-white drop-shadow-md transition-transform active:scale-90",
+                shouldShowControls ? "pointer-events-auto" : "pointer-events-none",
+              )}
+            >
+              <SettingsIcon size={24} />
+            </button>
+          </div>
+        </div>
+      )}
+      {IS_MOBILE_RUNTIME && (
+        <div
+          className={cx(
+            "pointer-events-none absolute inset-0 z-20 flex items-center justify-center gap-8 transition-opacity duration-200",
+            shouldShowControls ? "opacity-100" : "opacity-0",
+          )}
+        >
+          {showNextPrevious && (
+            <button
+              type="button"
+              title={getString('previous')}
+              onClick={playPrevious}
+              className={cx(
+                "grid h-14 w-14 place-items-center text-chrome-white/85 drop-shadow-md transition-transform active:scale-90",
+                shouldShowControls ? "pointer-events-auto" : "pointer-events-none",
+              )}
+            >
+              <SkipBack size={34} fill="currentColor" />
+            </button>
+          )}
+          <button
+            type="button"
+            title={isPlaying ? "Pause" : "Play"}
+            onClick={togglePlay}
+            className={cx(
+              "grid h-16 w-16 place-items-center rounded-full bg-chrome-black/50 text-chrome-white transition-transform active:scale-90",
+              shouldShowControls ? "pointer-events-auto" : "pointer-events-none",
+            )}
+          >
+            {isPlaying ? (
+              <Pause size={34} fill="currentColor" />
+            ) : (
+              <Play size={34} fill="currentColor" className="ml-1" />
+            )}
+          </button>
+          {showNextPrevious && (
+            <button
+              type="button"
+              onClick={() => playNext()}
+              className={cx(
+                "grid h-14 w-14 place-items-center text-chrome-white/85 drop-shadow-md transition-transform active:scale-90",
+                shouldShowControls ? "pointer-events-auto" : "pointer-events-none",
+              )}
+            >
+              <SkipForward size={34} fill="currentColor" />
+            </button>
+          )}
+        </div>
+      )}
+""",
+)
+# The controls sit flush with the bottom and side edges, as the seek bar does on Android.
+replace(
+    PLAYER_FILE,
+    '          isTheaterMode ? "px-4 pb-3 sm:px-6 sm:pb-4 lg:px-8" : "px-3 pb-3 sm:px-5 sm:pb-4",\n',
+    '          IS_MOBILE_RUNTIME\n'
+    '            ? "px-0 pb-0"\n'
+    '            : isTheaterMode\n'
+    '              ? "px-4 pb-3 sm:px-6 sm:pb-4 lg:px-8"\n'
+    '              : "px-3 pb-3 sm:px-5 sm:pb-4",\n',
+)
+# The row of pills above the seek bar.
+replace(
+    PLAYER_FILE,
+    "          <div\n            data-progress-track\n",
+    """          {IS_MOBILE_RUNTIME && (
+            <div className="flex items-center justify-between gap-2 px-3 pb-1">
+              <div className="flex min-w-0 items-center gap-2">
+                <div
+                  ref={timePillRef}
+                  role={isLive ? undefined : "button"}
+                  onClick={isLive ? undefined : () => setShowRemaining((value) => !value)}
+                  className="whitespace-nowrap rounded-full bg-chrome-black/55 px-3 py-1 text-xs font-semibold tabular-nums text-chrome-white"
+                >
+                  <span ref={currentTimeRef} />
+                  {!isLive && (
+                    <>
+                      {" "}
+                      <span className="text-chrome-zinc-400">/</span>{" "}
+                      <span ref={durationTimeRef} />
+                    </>
+                  )}
+                </div>
+                {isLive && (
+                  <button
+                    type="button"
+                    onClick={seekToLiveEdge}
+                    className="flex items-center gap-1 whitespace-nowrap rounded-full bg-chrome-black/55 px-3 py-1 text-xs font-bold uppercase tracking-wide text-chrome-white"
+                  >
+                    <span ref={liveDotRef} className="h-1.5 w-1.5 rounded-full bg-chrome-red-500 animate-pulse" />
+                    {getString("live_badge")}
+                  </button>
+                )}
+                <button
+                  ref={showChapters ? chapterPillRef : undefined}
+                  type="button"
+                  onClick={() => togglePanel("chapters")}
+                  className="hidden max-w-[240px] items-center gap-1 truncate rounded-full bg-chrome-black/55 px-3 py-1 text-xs font-medium text-chrome-white select-none"
+                >
+                  <span className="chapter-title truncate"></span>
+                  <ChevronRight size={14} className="shrink-0 text-chrome-zinc-400" />
+                </button>
+              </div>
+              <div className="flex items-center gap-2">
+                <button
+                  type="button"
+                  {...{ [PLAYER_MENU_OWNER_ATTR]: "" }}
+                  title={getString("player_menu_quality")}
+                  onClick={() => {
+                    if (settingsOpen && settingsPane === "quality") {
+                      setSettingsOpen(false);
+                      setSettingsPane("root");
+                    } else {
+                      setSettingsOpen(true);
+                      setSettingsPane("quality");
+                    }
+                  }}
+                  className="rounded-full bg-chrome-black/55 px-3 py-1 text-xs font-bold text-chrome-white"
+                >
+                  {qualityLabel(selectedQualityId || "auto", supportedQualities, activeQualityLabel)}
+                </button>
+                {showFullscreen && (
+                  <button
+                    type="button"
+                    title={getString('player_fullscreen')}
+                    onClick={toggleFullscreen}
+                    className="grid h-8 w-8 place-items-center rounded-full bg-chrome-black/55 text-chrome-white"
+                  >
+                    {isFullscreen ? <Minimize2 size={17} /> : <Maximize2 size={17} />}
+                  </button>
+                )}
+              </div>
+            </div>
+          )}
+          <div
+            data-progress-track
+""",
+)
+# The desktop row of small buttons is not drawn on touch devices.
+replace(
+    PLAYER_FILE,
+    '          <div data-touch-bar className="flex items-center justify-between gap-3">\n',
+    '          {!IS_MOBILE_RUNTIME && (\n          <div data-touch-bar className="flex items-center justify-between gap-3">\n',
+)
+replace(
+    PLAYER_FILE,
+    "            </div>\n          </div>\n        </div>\n      </div>\n\n      <PlayerSettingsMenu\n",
+    "            </div>\n          </div>\n          )}\n        </div>\n      </div>\n\n      <PlayerSettingsMenu\n",
+)
+
 print("ios-ui: done")
