@@ -13,6 +13,7 @@ import { decideRouteChangePlayerAction, watchVideoIdFromPath } from "../../lib/w
 import { expandPlayerInOwnerTab } from "../../lib/tabs/tabPlayback";
 import { activeTab, useTabsStore } from "../../store/useTabsStore";
 import { MINIMIZE_REQUEST_EVENT } from "../../lib/playerSheet";
+import { useImmersiveChrome } from "../../lib/immersiveChrome";
 import { useMediaSessionMetadata } from "../../lib/useMediaSessionMetadata";
 import { glideFrame } from "../../lib/theaterGlide";
 import { FullscreenPanelHost } from "./FullscreenPanelHost";
@@ -49,6 +50,7 @@ export function GlobalVideoPlayer() {
   const currentVideo = usePlayerStore((s) => s.currentVideo);
   const videoPlayerMode = usePlayerStore((s) => s.videoPlayerMode);
   const isVideoFullscreen = usePlayerStore((s) => s.isVideoFullscreen);
+    useImmersiveChrome(isVideoFullscreen);
   const isVideoFullscreenTransitioning = usePlayerStore((s) => s.isVideoFullscreenTransitioning);
   const isTheaterMode = usePlayerStore((s) => s.isTheaterMode);
   const setFullscreenPanel = usePlayerStore((s) => s.setFullscreenPanel);
