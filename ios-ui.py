@@ -64,8 +64,8 @@ replace(
 # 4. Keep content out from under the status bar and home indicator.
 replace(
     "src/App.tsx",
-    'import { APP_TITLEBAR_HEIGHT } from "./lib/platform";',
-    'import { APP_TITLEBAR_HEIGHT, IS_MOBILE_RUNTIME } from "./lib/platform";',
+    'import { APP_TITLEBAR_HEIGHT, IS_LINUX_RUNTIME } from "./lib/platform";',
+    'import { APP_TITLEBAR_HEIGHT, IS_LINUX_RUNTIME, IS_MOBILE_RUNTIME } from "./lib/platform";',
 )
 replace(
     "src/App.tsx",
@@ -1036,13 +1036,8 @@ replace(
 #     read-out showed the raw fraction), and the seek bar flush with the bottom edge like Android's.
 replace(
     "src/components/player/Player.tsx",
-    '"max-h-[calc(100vh-160px)] min-h-[480px] rounded-none" : "rounded-xl",\n',
-    '"max-h-[calc(100vh-160px)] min-h-[480px] rounded-none" : IS_MOBILE_RUNTIME ? "rounded-none" : "rounded-xl",\n',
-)
-replace(
-    "src/components/player/Player.tsx",
-    '"flex items-center justify-center rounded-none" : "rounded-xl",\n',
-    '"flex items-center justify-center rounded-none" : IS_MOBILE_RUNTIME ? "rounded-none" : "rounded-xl",\n',
+    'const VIDEO_CORNERS = IS_LINUX_RUNTIME ? "rounded-none" : "rounded-xl";',
+    'const VIDEO_CORNERS = IS_LINUX_RUNTIME || IS_MOBILE_RUNTIME ? "rounded-none" : "rounded-xl";',
 )
 replace(
     "src/components/player/gesture/touchGestures.ts",
@@ -1117,12 +1112,12 @@ replace(
     "src/components/player/Player.tsx",
     "  const seekBy = useCallback((delta: number) => {\n"
     "    const video = videoRef.current;\n"
-    "    const baseTime = video ? video.currentTime : currentTime;\n"
+    "    const baseTime = video ? video.currentTime : usePlayerStore.getState().currentTime;\n"
     "    seekTo(baseTime + delta);\n"
     "    showSeekFeedback(delta > 0 ? \"forward\" : \"backward\", Math.abs(delta));\n",
     "  const seekBy = useCallback((delta: number, silent = false) => {\n"
     "    const video = videoRef.current;\n"
-    "    const baseTime = video ? video.currentTime : currentTime;\n"
+    "    const baseTime = video ? video.currentTime : usePlayerStore.getState().currentTime;\n"
     "    seekTo(baseTime + delta);\n"
     "    if (!silent) showSeekFeedback(delta > 0 ? \"forward\" : \"backward\", Math.abs(delta));\n",
 )
