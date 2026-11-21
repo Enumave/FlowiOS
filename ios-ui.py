@@ -64,8 +64,8 @@ replace(
 # 4. Keep content out from under the status bar and home indicator.
 replace(
     "src/App.tsx",
-    'import { APP_TITLEBAR_HEIGHT, IS_LINUX_RUNTIME } from "./lib/platform";',
-    'import { APP_TITLEBAR_HEIGHT, IS_LINUX_RUNTIME, IS_MOBILE_RUNTIME } from "./lib/platform";',
+    'import { APP_TITLEBAR_HEIGHT } from "./lib/platform";',
+    'import { APP_TITLEBAR_HEIGHT, IS_MOBILE_RUNTIME } from "./lib/platform";',
 )
 replace(
     "src/App.tsx",
@@ -1031,12 +1031,18 @@ replace(
     "            </div>\n          </div>\n        </div>\n      </div>\n\n      <PlayerSettingsMenu\n",
     "            </div>\n          </div>\n          )}\n        </div>\n      </div>\n\n      <PlayerSettingsMenu\n",
 )
+
 # 15. Player fixes: no rounded corners on the video surface, whole-second swipe seeking (the seek
 #     read-out showed the raw fraction), and the seek bar flush with the bottom edge like Android's.
 replace(
     "src/components/player/Player.tsx",
-    'const VIDEO_CORNERS = IS_LINUX_RUNTIME ? "rounded-none" : "rounded-xl";',
-    'const VIDEO_CORNERS = IS_LINUX_RUNTIME || IS_MOBILE_RUNTIME ? "rounded-none" : "rounded-xl";',
+    '"max-h-[calc(100vh-160px)] min-h-[480px] rounded-none" : "rounded-xl",\n',
+    '"max-h-[calc(100vh-160px)] min-h-[480px] rounded-none" : IS_MOBILE_RUNTIME ? "rounded-none" : "rounded-xl",\n',
+)
+replace(
+    "src/components/player/Player.tsx",
+    '"flex items-center justify-center rounded-none" : "rounded-xl",\n',
+    '"flex items-center justify-center rounded-none" : IS_MOBILE_RUNTIME ? "rounded-none" : "rounded-xl",\n',
 )
 replace(
     "src/components/player/gesture/touchGestures.ts",
@@ -1064,4 +1070,79 @@ with open("src/App.css", "a", encoding="utf-8", newline="\n") as css:
         "}\n"
     )
 print("patched src/App.css (seek bar position)")
+
+# 16. Swipe-to-seek the way Flow for Android shows it (SeekDragOverlay): a dark rounded panel in the
+#     middle of the video with the time the swipe will land on and, in the accent colour, how far
+#     that is from where playback is. Nothing else is shown when the finger lifts.
+OVERLAY_FILE = "src/components/player/gesture/overlay.tsx"
+replace(
+    OVERLAY_FILE,
+    "function formatTime(seconds: number) {\n",
+    "function formatScrubTime(seconds: number) {\n"
+    "  if (!Number.isFinite(seconds) || seconds < 0) return \"00:00\";\n"
+    "  const rounded = Math.floor(seconds);\n"
+    "  const hours = Math.floor(rounded / 3600);\n"
+    "  const minutes = Math.floor((rounded % 3600) / 60);\n"
+    "  const secs = rounded % 60;\n"
+    "  const pad = (value: number) => value.toString().padStart(2, \"0\");\n"
+    "  return hours > 0 ? `${hours}:${pad(minutes)}:${pad(secs)}` : `${pad(minutes)}:${pad(secs)}`;\n"
+    "}\n"
+    "\n"
+    "function formatTime(seconds: number) {\n",
+)
+replace(
+    OVERLAY_FILE,
+    '      {scrubPreview && (\n'
+    '        <div className="pointer-events-none absolute left-1/2 top-8 z-30 -translate-x-1/2 rounded-full bg-chrome-black/70 px-5 py-2 text-sm font-bold text-chrome-white">\n'
+    '          {formatTime(scrubPreview.target)} ({scrubPreview.delta >= 0 ? "+" : "-"}\n'
+    '          {Math.abs(Math.round(scrubPreview.delta))}s)\n'
+    '        </div>\n'
+    '      )}\n',
+    '      {scrubPreview && (\n'
+    '        <div className="pointer-events-none absolute left-1/2 top-1/2 z-30 flex -translate-x-1/2 -translate-y-1/2 flex-col items-center rounded-3xl bg-chrome-black/55 px-[22px] py-[14px]">\n'
+    '          <span className="text-2xl font-bold tabular-nums text-chrome-white">{formatScrubTime(scrubPreview.target)}</span>\n'
+    '          <span className="mt-0.5 text-sm font-semibold tabular-nums text-[var(--color-primary)]">\n'
+    '            {scrubPreview.delta < 0 ? "-" : "+"}\n'
+    '            {formatTime(Math.abs(scrubPreview.delta))}\n'
+    '          </span>\n'
+    '        </div>\n'
+    '      )}\n',
+)
+replace(
+    OVERLAY_FILE,
+    "  seekBy: (delta: number) => void;\n",
+    "  seekBy: (delta: number, silent?: boolean) => void;\n",
+)
+replace(
+    "src/components/player/Player.tsx",
+    "  const seekBy = useCallback((delta: number) => {\n"
+    "    const video = videoRef.current;\n"
+    "    const baseTime = video ? video.currentTime : currentTime;\n"
+    "    seekTo(baseTime + delta);\n"
+    "    showSeekFeedback(delta > 0 ? \"forward\" : \"backward\", Math.abs(delta));\n",
+    "  const seekBy = useCallback((delta: number, silent = false) => {\n"
+    "    const video = videoRef.current;\n"
+    "    const baseTime = video ? video.currentTime : currentTime;\n"
+    "    seekTo(baseTime + delta);\n"
+    "    if (!silent) showSeekFeedback(delta > 0 ? \"forward\" : \"backward\", Math.abs(delta));\n",
+)
+GESTURES_FILE = "src/components/player/gesture/touchGestures.ts"
+replace(
+    GESTURES_FILE,
+    "  seekBy: (delta: number) => void;\n",
+    "  seekBy: (delta: number, silent?: boolean) => void;\n",
+)
+replace(
+    GESTURES_FILE,
+    "        if (!cancelled && lastPreview) {\n"
+    "          const seconds = Math.round(lastPreview.delta);\n"
+    "          if (seconds !== 0) latest.current.seekBy(seconds);\n"
+    "        }\n",
+    "        if (!cancelled && lastPreview) {\n"
+    "          // Land on the time that was shown, even though playback kept moving during the swipe.\n"
+    "          const seconds = lastPreview.target - (video()?.currentTime ?? baseTime);\n"
+    "          if (Math.abs(seconds) >= 0.5) latest.current.seekBy(seconds, true);\n"
+    "        }\n",
+)
+
 print("ios-ui: done")
