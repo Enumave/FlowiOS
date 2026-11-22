@@ -55,6 +55,8 @@ export function PlayerTab() {
 
   const [doubleTapSeek, setDoubleTapSeek] = useNumberPref(SETTINGS.DOUBLE_TAP_SEEK_SECONDS, 10);
   const [doubleClickSeek, setDoubleClickSeek] = useBoolPref(SETTINGS.DOUBLE_CLICK_SEEK_ENABLED, true);
+  const [wheelAction, setWheelAction] = usePreference(SETTINGS.PLAYER_WHEEL_ACTION, 'scroll');
+  const [controlsShade, setControlsShade] = usePreference(SETTINGS.PLAYER_CONTROLS_SHADE, 'standard');
 
   const [subtitles, setSubtitles] = useBoolPref(SETTINGS.SUBTITLES_ENABLED, false);
   const [subtitleLang, setSubtitleLang] = usePreference(SETTINGS.PREFERRED_SUBTITLE_LANGUAGE, 'en');
@@ -172,6 +174,13 @@ export function PlayerTab() {
         <SettingItem title={getString('settings_double_click_seek')} description={getString('settings_double_click_seek_desc')}>
           <ToggleSwitch checked={doubleClickSeek} onChange={setDoubleClickSeek} />
         </SettingItem>
+        <SettingItem title={getString('settings_player_wheel')} description={getString('settings_player_wheel_desc')}>
+          <Select value={wheelAction} onChange={setWheelAction} options={[
+            { value: 'scroll', label: getString('settings_player_wheel_scroll') },
+            { value: 'volume', label: getString('settings_player_wheel_volume') },
+            { value: 'zoom', label: getString('settings_player_wheel_zoom') },
+          ]} />
+        </SettingItem>
       </SettingsGroup>
 
       <SettingsGroup title={getString('settings_group_subtitles')}>
@@ -237,6 +246,13 @@ export function PlayerTab() {
       <SettingsGroup title={getString('settings_group_player_appearance')}>
         <SettingItem title={getString('settings_fullscreen_title')} description={getString('settings_fullscreen_title_desc')}>
           <ToggleSwitch checked={fullscreenTitle} onChange={setFullscreenTitle} />
+        </SettingItem>
+        <SettingItem title={getString('settings_controls_shade')} description={getString('settings_controls_shade_desc')}>
+          <Select value={controlsShade} onChange={setControlsShade} options={[
+            { value: 'standard', label: getString('settings_controls_shade_standard') },
+            { value: 'light', label: getString('settings_controls_shade_light') },
+            { value: 'off', label: getString('settings_controls_shade_off') },
+          ]} />
         </SettingItem>
         <SettingItem title={getString('settings_ambient_mode')} description={getString('settings_ambient_mode_desc')}>
           <div className="flex items-center gap-2.5">

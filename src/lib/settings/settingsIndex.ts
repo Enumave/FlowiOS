@@ -59,6 +59,7 @@ export const SETTINGS_INDEX: SettingEntry[] = [
     { title: "settings_theme_light_mode" },
     { title: "settings_theme_dark_mode" },
     { title: "settings_theme_dark_style", keywords: ["amoled", "black"] },
+    { title: "settings_interface_zoom", summary: "settings_interface_zoom_desc", keywords: ["zoom", "scale", "size", "bigger", "smaller"] },
     { title: "settings_app_font", summary: "settings_app_font_desc", keywords: ["typeface", "condensed", "serif", "inter"] },
     { title: "font_choose_file", keywords: ["custom font", "ttf", "otf", "typeface"] },
     { title: "settings_highlight_new", summary: "settings_highlight_new_desc" },
@@ -92,6 +93,7 @@ export const SETTINGS_INDEX: SettingEntry[] = [
     { title: "settings_speed_slider", summary: "settings_speed_slider_desc" },
     { title: "settings_seek_interval", summary: "settings_seek_interval_desc" },
     { title: "settings_double_click_seek", summary: "settings_double_click_seek_desc" },
+    { title: "settings_player_wheel", summary: "settings_player_wheel_desc" },
     { title: "settings_closed_captions", summary: "settings_closed_captions_desc" },
     { title: "settings_preferred_language" },
     { title: "settings_font_size" },
@@ -106,6 +108,7 @@ export const SETTINGS_INDEX: SettingEntry[] = [
     { title: "settings_pip_always_on_top", summary: "settings_pip_always_on_top_desc" },
     { title: "settings_pip_on_minimize", summary: "settings_pip_on_minimize_desc" },
     { title: "settings_fullscreen_title", summary: "settings_fullscreen_title_desc" },
+    { title: "settings_controls_shade", summary: "settings_controls_shade_desc", keywords: ["dim", "dark", "scrim", "overlay"] },
     { title: "settings_ambient_mode", summary: "settings_ambient_mode_desc" },
     { title: "settings_ambient_glow", summary: "settings_ambient_glow_desc" },
     { title: "settings_adaptive_player", summary: "settings_adaptive_player_desc" },
@@ -128,6 +131,9 @@ export const SETTINGS_INDEX: SettingEntry[] = [
   ]),
   ...rows("keyboard", [
     { title: "settings_global_media_keys", summary: "settings_global_media_keys_desc", keywords: ["hotkey", "shortcut", "keyboard", "media"] },
+    { title: "settings_trackpad_gestures", summary: "settings_trackpad_gestures_desc", keywords: ["swipe", "pinch", "gesture", "touchpad", "back"] },
+    { title: "settings_single_key_shortcuts", summary: "settings_single_key_shortcuts_desc", keywords: ["shortcut", "speech", "accessibility"] },
+    { title: "settings_shortcuts_search", summary: "settings_shortcuts_edit_hint", keywords: ["shortcut", "hotkey", "keyboard", "rebind", "customize", "keys"] },
   ]),
   ...rows("music", [
     { title: "music_equalizer", summary: "settings_music_equalizer_desc" },
