@@ -442,6 +442,20 @@ replace_group(
     "video shelf",
 )
 
+# 8. The thin progress strip the player keeps while its controls are hidden is for the windowed
+#    player only on Android (PlayerControlsOverlay: `!isFullscreen`). In fullscreen, hiding the
+#    controls hides everything, so nothing is left on screen without a touch.
+replace_group(
+    "src/components/player/FlowPlayerControls.tsx",
+    [
+        (
+            "{idleStripEnabled && !isLive && !shouldShowControls && (",
+            "{idleStripEnabled && !isLive && !shouldShowControls && !(IS_MOBILE_RUNTIME && isFullscreen) && (",
+        ),
+    ],
+    "idle progress strip",
+)
+
 # 6. iOS draws the status bar (and the multitasking button in it) over the top of the app. Hiding
 #    the bar left that button floating over the top bar; showing it makes the page start below it.
 PLIST = "src-tauri/Info.ios.plist"
