@@ -161,6 +161,7 @@ replace(
     "\n"
     "      {seekFeedback && <SeekFeedback feedback={seekFeedback} compact={isCompact} />}\n",
 )
+
 # 6b. A finger touching down must not reveal the controls: a drag (scrub, swipe, pinch) starts with a
 #     touch-down, so revealing there flashes the controls over every gesture. A tap still toggles
 #     them, from the click (onTapToggleControls); a mouse or trackpad on iPad keeps the desktop behaviour.
@@ -173,6 +174,7 @@ replace(
     "    if (!IS_MOBILE_RUNTIME || event.pointerType !== \"touch\") onRevealControls();\n"
     "    menuClosingPressRef.current = Boolean(contextMenu) || settingsOpen;\n",
 )
+
 # 7. App-wide touch behaviour, as on Android: hold for the menu a right click opens, swipe in from
 #    the left edge to go back, pull a page down to refresh it (Home and Subscriptions), and keep
 #    hover-only buttons visible. The logic lives in src/lib/touchNavigation.ts.
@@ -1151,6 +1153,33 @@ replace(
     "          const seconds = lastPreview.target - (video()?.currentTime ?? baseTime);\n"
     "          if (Math.abs(seconds) >= 0.5) latest.current.seekBy(seconds, true);\n"
     "        }\n",
+)
+
+# 17. Tapping the video hides the controls while paused too, as in the YouTube app. Paused used to
+#     force them on (`!isPlaying`), so a tap could never hide them. A tap that hides them while paused
+#     is remembered until anything reveals them again (a tap, pausing, playing, a key press).
+PLAYER = "src/components/player/Player.tsx"
+replace(
+    PLAYER,
+    "  const [controlsVisible, setControlsVisible] = useState(true);\n",
+    "  const [controlsVisible, setControlsVisible] = useState(true);\n"
+    "  const [pausedControlsHidden, setPausedControlsHidden] = useState(false);\n",
+)
+replace(
+    PLAYER,
+    "  const shouldShowControls = controlsVisible || !isPlaying || settingsOpen || isScrubbing;\n",
+    "  const shouldShowControls =\n"
+    "    controlsVisible || (!isPlaying && !pausedControlsHidden) || settingsOpen || isScrubbing;\n",
+)
+replace(
+    PLAYER,
+    "  const revealControls = useCallback(() => {\n    setControlsVisible(true);\n",
+    "  const revealControls = useCallback(() => {\n    setControlsVisible(true);\n    setPausedControlsHidden(false);\n",
+)
+replace(
+    PLAYER,
+    "    if (shouldShowControls) {\n      clearHideTimer();\n      setControlsVisible(false);\n",
+    "    if (shouldShowControls) {\n      clearHideTimer();\n      setControlsVisible(false);\n      if (!isPlaying) setPausedControlsHidden(true);\n",
 )
 
 print("ios-ui: done")
