@@ -61,9 +61,20 @@ fn answer_from_hide(controller: &AnyObject) {
         );
     }
 }
+/// The status bar (time, date, battery) leaves with the home indicator. This is the
+/// application-level call, which works because Info.ios.plist turns off view-controller-based
+/// status bar appearance. 1 is UIStatusBarAnimationFade.
+fn set_status_bar_hidden(hidden: bool) {
+    // SAFETY: a UIKit call on the main thread; `apply` only runs there.
+    unsafe {
+        let application: *mut AnyObject = msg_send![class!(UIApplication), sharedApplication];
+        let _: () = msg_send![application, setStatusBarHidden: Bool::new(hidden), withAnimation: 1isize];
+    }
+}
 
 fn apply(hide: bool) {
     HIDE.store(hide, Ordering::Relaxed);
+    set_status_bar_hidden(hide);
     // SAFETY: the pointer comes from UIKit on the main thread and is used only inside this call.
     let Some(controller) = (unsafe { root_view_controller().as_ref() }) else {
         tracing::warn!("No root view controller to hide the home indicator on");
