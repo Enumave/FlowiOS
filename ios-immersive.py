@@ -1,10 +1,13 @@
 #!/usr/bin/env python3
-"""Hide the iPad home indicator (the white bar at the bottom) during fullscreen video.
+"""Hide the iPad's system bars during fullscreen video: the home indicator at the bottom and the
+status bar at the top (the multitasking button sits in it, so it goes too).
 
-Run from the repository root after ios-port.py. The native part is src-tauri/src/ios_chrome.rs and
-the frontend part is src/lib/immersiveChrome.ts; this only wires the Rust side into the iOS build.
-Like the other scripts it stops with an error if a snippet is not found. To drop the feature, remove
-this script's step from the workflow: nothing else depends on it.
+Run from the repository root after ios-port.py, ios-ui.py and ios-adaptive.py. The native part is
+src-tauri/src/ios_chrome.rs and the frontend part is src/lib/immersiveChrome.ts; this wires the
+Rust side into the iOS build and lets the view controller, rather than the plist, decide whether
+the status bar shows (the plist keeps it visible everywhere else). Like the other scripts it stops
+with an error if a snippet is not found. To drop the feature, remove this script's step from the
+workflow: nothing else depends on it.
 """
 import sys
 
@@ -36,4 +39,9 @@ replace(
     'apple-native-keyring-store = { version = "1", features = ["protected"] }\n'
     "# The home indicator preference (src/ios_chrome.rs). Already in the tree through tauri.\n"
     'objc2 = "0.6"\n',
+)
+replace(
+    "src-tauri/Info.ios.plist",
+    "  <key>UIViewControllerBasedStatusBarAppearance</key>\n  <false/>\n",
+    "  <key>UIViewControllerBasedStatusBarAppearance</key>\n  <true/>\n",
 )
