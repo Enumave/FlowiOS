@@ -1,4 +1,4 @@
-import { MOTION_EASE, motionMs } from "./motion";
+import { motionMs } from "./motion";
 import type { FrameBox } from "./theaterGlide";
 
 /*
@@ -58,8 +58,6 @@ export const COMMIT_PROGRESS = 0.35;
 export const FLICK_PX_PER_MS = 0.45;
 /** A flick still has to have gone somewhere; a fast twitch at the start is not a swipe. */
 const FLICK_MIN_PROGRESS = 0.04;
-const MIN_SETTLE_MS = 140;
-const MIN_SETTLE_SPEED = 0.6;
 const VELOCITY_WINDOW_MS = 100;
 
 export const clamp = (value: number, min: number, max: number) => Math.min(max, Math.max(min, value));
@@ -89,15 +87,73 @@ export function shouldCommit(progress: number, velocity: number): boolean {
   return progress >= COMMIT_PROGRESS;
 }
 
+// ---------------------------------------------------------------------------
+// Spring
+// ---------------------------------------------------------------------------
+
 /**
- * How long the rest of the trip takes: the distance left at the speed of the release, but never
- * slower than a gentle settle nor longer than `maxMs` (the app's layout motion token). A `maxMs`
- * of zero means reduced motion, which skips the animation.
+ * A damped spring, which is how a released player settles on Android and in YouTube. `omega` is its
+ * stiffness in rad/s and `zeta` its damping: below 1 it overshoots and rocks back, at 1 it just
+ * arrives. The motion is measured along the whole trip (0 is where the drag began, 1 its target),
+ * so a bounce is as big as the swipe was long, not as big as what was left of it.
  */
-export function settleDurationMs(distancePx: number, speedPxPerMs: number, maxMs: number): number {
-  if (maxMs <= 0) return 0;
-  const speed = Math.max(Math.abs(speedPxPerMs), MIN_SETTLE_SPEED);
-  return clamp(distancePx / speed, Math.min(MIN_SETTLE_MS, maxMs), maxMs);
+export interface Spring {
+  omega: number;
+  zeta: number;
+}
+
+/** Growing to fullscreen: lively, with a small overshoot that the screen's edge crops. */
+export const SPRING_EXPAND: Spring = { omega: 20, zeta: 0.62 };
+/** Shrinking to the mini player or the page: barely overshoots, it must not run off the screen. */
+export const SPRING_COLLAPSE: Spring = { omega: 19, zeta: 0.75 };
+/** A swipe that did not go through springs back with a visible wobble. */
+export const SPRING_RETURN: Spring = { omega: 21, zeta: 0.55 };
+
+/** Fastest the spring is thrown at, in trips per second, so a wild flick cannot fling the frame. */
+const MAX_RATE = 7;
+/** The spring is at rest once it is this close to its goal (a fraction of the trip, under a pixel). */
+const REST_DISTANCE = 0.0015;
+const MAX_SPRING_MS = 900;
+const FRAME_MS = 16;
+
+/**
+ * How far the spring is from its goal `t` seconds after it was let go, starting `e0` away and moving
+ * at `v0` per second. A `zeta` of 1 or more is treated as critically damped.
+ */
+export function springOffset(t: number, e0: number, v0: number, { omega, zeta }: Spring): number {
+  if (zeta >= 1) return (e0 + (v0 + omega * e0) * t) * Math.exp(-omega * t);
+  const damped = omega * Math.sqrt(1 - zeta * zeta);
+  return (
+    Math.exp(-zeta * omega * t) *
+    (e0 * Math.cos(damped * t) + ((v0 + zeta * omega * e0) / damped) * Math.sin(damped * t))
+  );
+}
+
+/**
+ * The positions to play, one per frame, from `from` to `goal` (both along the trip) with the
+ * release's `rate` in trips per second. Ends exactly on `goal`. Zero duration means nothing to play.
+ */
+export function springFrames(
+  from: number,
+  goal: number,
+  rate: number,
+  spring: Spring,
+): { durationMs: number; values: number[] } {
+  const e0 = from - goal;
+  const v0 = clamp(rate, -MAX_RATE, MAX_RATE);
+  let lastMovingMs = -1;
+  for (let ms = 0; ms <= MAX_SPRING_MS; ms += 4) {
+    if (Math.abs(springOffset(ms / 1000, e0, v0, spring)) > REST_DISTANCE) lastMovingMs = ms;
+  }
+  if (lastMovingMs < 0) return { durationMs: 0, values: [goal] };
+  const durationMs = Math.min(MAX_SPRING_MS, lastMovingMs + FRAME_MS);
+  const steps = Math.ceil(durationMs / FRAME_MS);
+  const values: number[] = [];
+  for (let step = 0; step < steps; step += 1) {
+    values.push(goal + springOffset((step * durationMs) / steps / 1000, e0, v0, spring));
+  }
+  values.push(goal);
+  return { durationMs, values };
 }
 
 /** The finger's recent speed in px per ms, signed like the drag (positive is down). */
@@ -177,39 +233,47 @@ export function startPlayerSheet(options: PlayerSheetOptions): PlayerSheet {
     restoreHeld();
   };
 
-  /** Plays the rest of the trip. The frame must already hold the layout it ends in. */
-  const settle = (from: { box: FrameBox; radius: number }, to: { box: FrameBox; radius: number }, ms: number) => {
-    if (ms <= 0 || typeof frame.animate !== "function") {
+  /**
+   * Plays the rest of the trip as a spring toward `goal` (1 is the target, 0 is where the drag
+   * began). The frame must already hold the layout it ends in.
+   */
+  const settle = (to: SheetTarget, goal: 0 | 1, rate: number, spring: Spring) => {
+    const { durationMs, values } = springFrames(progress, goal, rate, spring);
+    if (motionMs("--motion-layout") <= 0 || durationMs <= 0 || typeof frame.animate !== "function") {
       finish();
       return;
     }
     phase = "settle";
     frame.setAttribute(SHEET_ATTR, "settle");
     document.body.setAttribute(SHEET_SETTLING_ATTR, "");
-    const animation = frame.animate([boxStyle(from.box, from.radius), boxStyle(to.box, to.radius)], {
-      duration: ms,
-      easing: MOTION_EASE,
+    const keyframes = values.map((y) => {
+      const at = lerpBox(origin, to.box, y);
+      // A spring can swing past either end, but a box cannot be smaller than nothing.
+      const sized = { ...at, width: Math.max(0, at.width), height: Math.max(0, at.height) };
+      return boxStyle(sized, Math.max(0, lerp(originRadius, to.radius, y)));
     });
+    const animation = frame.animate(keyframes, { duration: durationMs, easing: "linear" });
     animation.onfinish = finish;
     animation.oncancel = finish;
   };
 
+  /** Finger speed toward the target in px per ms, negative when it is moving back. */
   const releaseVelocity = () => {
     const speed = tracker.velocity();
     return target === down ? speed : -speed;
   };
 
+  /** The same speed as trips per second, which is what the spring is thrown with. */
+  const releaseRate = (to: SheetTarget) => (releaseVelocity() * 1000) / to.travel;
+
   const springBack = () => {
-    const speed = Math.abs(tracker.velocity());
-    const travel = target?.travel ?? 0;
-    const ms = settleDurationMs(progress * travel, speed, motionMs("--motion-layout"));
-    const from = { box, radius };
+    const to = target;
     restoreBox();
-    if (progress <= 0) {
+    if (!to || progress <= 0) {
       finish();
       return;
     }
-    settle(from, { box: origin, radius: originRadius }, ms);
+    settle(to, 0, releaseRate(to), SPRING_RETURN);
   };
 
   return {
@@ -239,12 +303,10 @@ export function startPlayerSheet(options: PlayerSheetOptions): PlayerSheet {
         return;
       }
       const done = target;
-      const speed = Math.abs(tracker.velocity());
-      const ms = settleDurationMs((1 - progress) * done.travel, speed, motionMs("--motion-layout"));
-      const from = { box, radius };
+      const rate = releaseRate(done);
       restoreBox();
       commit(done.action);
-      settle(from, { box: done.box, radius: done.radius }, ms);
+      settle(done, 1, rate, done.action === "enter-fullscreen" ? SPRING_EXPAND : SPRING_COLLAPSE);
     },
 
     cancel() {
