@@ -161,7 +161,18 @@ replace(
     "\n"
     "      {seekFeedback && <SeekFeedback feedback={seekFeedback} compact={isCompact} />}\n",
 )
-
+# 6b. A finger touching down must not reveal the controls: a drag (scrub, swipe, pinch) starts with a
+#     touch-down, so revealing there flashes the controls over every gesture. A tap still toggles
+#     them, from the click (onTapToggleControls); a mouse or trackpad on iPad keeps the desktop behaviour.
+replace(
+    OVERLAY,
+    "    clearClickTimer();\n"
+    "    onRevealControls();\n"
+    "    menuClosingPressRef.current = Boolean(contextMenu) || settingsOpen;\n",
+    "    clearClickTimer();\n"
+    "    if (!IS_MOBILE_RUNTIME || event.pointerType !== \"touch\") onRevealControls();\n"
+    "    menuClosingPressRef.current = Boolean(contextMenu) || settingsOpen;\n",
+)
 # 7. App-wide touch behaviour, as on Android: hold for the menu a right click opens, swipe in from
 #    the left edge to go back, pull a page down to refresh it (Home and Subscriptions), and keep
 #    hover-only buttons visible. The logic lives in src/lib/touchNavigation.ts.
