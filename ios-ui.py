@@ -129,8 +129,8 @@ replace(
 )
 replace(
     OVERLAY,
-    "  const [statsVisible, setStatsVisible] = useState(false);\n",
-    "  const [statsVisible, setStatsVisible] = useState(false);\n"
+    "  const [isBoosting, setIsBoosting] = useState(false);\n",
+    "  const [isBoosting, setIsBoosting] = useState(false);\n"
     "  const [scrubPreview, setScrubPreview] = useState<ScrubPreview>(null);\n",
 )
 replace(
@@ -167,14 +167,14 @@ replace(
 #    hover-only buttons visible. The logic lives in src/lib/touchNavigation.ts.
 replace(
     "src/App.tsx",
-    'import { useTabHistoryShortcuts } from "./lib/tabs/useTabHistoryShortcuts";\n',
-    'import { useTabHistoryShortcuts } from "./lib/tabs/useTabHistoryShortcuts";\n'
+    'import { useTabHistoryMouseButtons } from "./lib/tabs/useTabHistoryMouseButtons";\n',
+    'import { useTabHistoryMouseButtons } from "./lib/tabs/useTabHistoryMouseButtons";\n'
     'import { useTouchNavigation } from "./lib/touchNavigation";\n',
 )
 replace(
     "src/App.tsx",
-    "  useTabHistoryShortcuts();\n",
-    "  useTabHistoryShortcuts();\n  useTouchNavigation();\n",
+    "  useTabHistoryMouseButtons();\n",
+    "  useTabHistoryMouseButtons();\n  useTouchNavigation();\n",
 )
 replace(
     "src/pages/Home.tsx",
@@ -640,13 +640,14 @@ replace(
 )
 replace(
     "src/components/layout/TopbarSearch.tsx",
-    "import { IS_MACOS_RUNTIME } from '../../lib/platform';\n",
-    "import { IS_MACOS_RUNTIME, IS_MOBILE_RUNTIME } from '../../lib/platform';\n",
+    "import { useRunSearch } from '../../lib/useRunSearch';\n",
+    "import { useRunSearch } from '../../lib/useRunSearch';\n"
+    "import { IS_MOBILE_RUNTIME } from '../../lib/platform';\n",
 )
 replace(
     "src/components/layout/TopbarSearch.tsx",
-    '        ) : (\n          <kbd className="hidden shrink-0',
-    '        ) : IS_MOBILE_RUNTIME ? null : (\n          <kbd className="hidden shrink-0',
+    '        ) : searchKey ? (\n          <kbd dir="ltr"',
+    '        ) : searchKey && !IS_MOBILE_RUNTIME ? (\n          <kbd dir="ltr"',
 )
 # 13. Android's tablet watch page (the page layout itself is in ios-adaptive.py): the video runs edge
 #     to edge, the channel row puts Subscribe at the far end, the action buttons scroll in one row, the related videos are large cards, and the
@@ -946,7 +947,7 @@ replace(
 # The row of pills above the seek bar.
 replace(
     PLAYER_FILE,
-    "          <div\n            data-progress-track\n",
+    "          <div\n            ref={seekWheelRef}\n            data-progress-track\n",
     """          {IS_MOBILE_RUNTIME && (
             <div className="flex items-center justify-between gap-2 px-3 pb-1">
               <div className="flex min-w-0 items-center gap-2">
@@ -1017,6 +1018,7 @@ replace(
             </div>
           )}
           <div
+            ref={seekWheelRef}
             data-progress-track
 """,
 )
