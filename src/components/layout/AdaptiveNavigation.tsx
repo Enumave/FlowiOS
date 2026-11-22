@@ -14,6 +14,7 @@ import { SETTINGS } from "../../lib/settings/schema";
 import { profileStorage } from "../../lib/storage/profileStorage";
 import { MAX_BAR_TABS, railItemCapacity, splitTabsForOverflow } from "../../lib/adaptive/windowSizeClass";
 import { useRailExpandable } from "../../lib/adaptive/useWindowSizeClass";
+import { revealBar, useBarHidden } from "../../lib/adaptive/barVisibility";
 
 /*
   Primary navigation as Flow for Android draws it (FlowNavigationBar / FlowNavigationRail):
@@ -199,6 +200,9 @@ export function NavigationBar() {
   const location = useLocation();
   const tabs = useNavTabs();
   const menu = useOverflowMenu();
+  const scrolledAway = useBarHidden();
+  // A new page starts with the bar showing.
+  useEffect(() => revealBar(), [location.pathname]);
   if (navigationHiddenOn(location.pathname)) return null;
 
   const selected = selectedTabOf(tabs, location.pathname);
@@ -208,7 +212,10 @@ export function NavigationBar() {
     <nav
       aria-label={getString("sidebar_menu")}
       data-flow-nav="bar"
-      className="flex h-16 shrink-0 items-stretch border-t border-chrome-neutral-800/50 bg-background"
+      aria-hidden={scrolledAway || undefined}
+      className={`flex shrink-0 items-stretch overflow-hidden bg-background transition-[height] duration-200 ease-out ${
+        scrolledAway ? "pointer-events-none h-0" : "h-16 border-t border-chrome-neutral-800/50"
+      }`}
     >
       {shown.map((tab) => {
         const active = tab === selected;
