@@ -8,6 +8,7 @@ import Logo from "../common/Logo";
 import { IconButton } from "../ui/IconButton";
 import { TopbarSearch } from "./TopbarSearch";
 import { SIDEBAR_MENU_BUTTON_ID } from "./Topbar";
+import { navigationHiddenOn } from "./AdaptiveNavigation";
 import { NotificationsBell } from "../notifications/NotificationsBell";
 import { ProfileMenuButton } from "../profiles/ProfileMenuButton";
 import { SETTINGS } from "../../lib/settings/schema";
@@ -97,7 +98,7 @@ export function AdaptiveTopbar() {
   return (
     <header className={`${shell} justify-between gap-2`}>
       <div className="flex min-w-0 items-center gap-1">
-        {!usesRail && (
+        {(!usesRail || navigationHiddenOn(location.pathname)) && (
           <IconButton id={SIDEBAR_MENU_BUTTON_ID} aria-label={getString("sidebar_menu")} aria-expanded={drawerOpen} onClick={toggleDrawer}>
             {drawerOpen ? <PanelLeftClose className="rtl:-scale-x-100" /> : <PanelLeftOpen className="rtl:-scale-x-100" />}
           </IconButton>
