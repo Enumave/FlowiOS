@@ -17,14 +17,15 @@ export type ScreenLevels = {
 };
 
 /**
- * Starts a brightness or volume swipe and returns where both stand. A web view cannot move either,
+ * Starts a brightness or volume swipe and returns where both stand (`withVolume` is for a volume
+ * swipe, which is the only one that needs the volume slider). A web view cannot move either,
  * and iOS ignores `video.volume`, so these go through native code (src-tauri/src/ios_chrome.rs).
  * Null on anything but iOS, or if the native side did not answer.
  */
-export async function beginScreenLevels(): Promise<ScreenLevels | null> {
+export async function beginScreenLevels(withVolume: boolean): Promise<ScreenLevels | null> {
   if (!ON_IOS) return null;
   try {
-    const [brightness, volume] = await invoke<[number, number]>("begin_screen_levels");
+    const [brightness, volume] = await invoke<[number, number]>("begin_screen_levels", { withVolume });
     if (!(brightness >= 0)) return null;
     return { brightness, volume: volume >= 0 ? volume : null };
   } catch {
