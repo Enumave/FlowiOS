@@ -220,12 +220,12 @@ export function useTouchPlayerGestures(options: Options) {
       levelSent = -1;
       const session = ++levelSession;
       void (async () => {
-        let levels = await beginScreenLevels();
+        let levels = await beginScreenLevels(kind === "volume");
         // The first time, iOS can take a moment to produce the volume slider.
         for (let attempt = 0; attempt < 2 && levels && kind === "volume" && levels.volume === null; attempt++) {
           await new Promise((resolve) => window.setTimeout(resolve, 90));
           if (session !== levelSession) return;
-          levels = await beginScreenLevels();
+          levels = await beginScreenLevels(true);
         }
         if (session !== levelSession || levelKind !== kind) return;
         const base = kind === "brightness" ? levels?.brightness : levels?.volume;
