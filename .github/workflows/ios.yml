@@ -36,6 +36,9 @@ jobs:
       - name: Apply phone and tablet layouts from Flow for Android
         run: python3 ios-adaptive.py
 
+      - name: Fade the Watch page when the player is dragged to the mini player
+        run: python3 ios-sheet-fade.py
+
       - name: Hide the home bar during fullscreen video
         run: python3 ios-immersive.py
 
