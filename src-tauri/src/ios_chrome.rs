@@ -157,6 +157,11 @@ fn attach_volume_view() {
             return;
         };
         let view = Retained::into_raw(view);
+        // A zero-size view still lets its slider's thumb draw at the corner (a white dot), so it is
+        // clipped to its empty bounds and made all but transparent. It must stay in the window and
+        // not be hidden, or iOS shows its own volume pop-up over ours.
+        let _: () = msg_send![view, setClipsToBounds: Bool::YES];
+        let _: () = msg_send![view, setAlpha: 0.01_f64];
         let parent: *mut AnyObject = msg_send![controller, view];
         let _: () = msg_send![parent, addSubview: view];
         let _: () = msg_send![view, layoutIfNeeded];
@@ -246,14 +251,19 @@ pub fn set_immersive(app: AppHandle, on: bool) {
     let _ = app.run_on_main_thread(move || apply(on));
 }
 
-/// Starts a brightness or volume swipe: puts the volume view in the window and returns the current
-/// `(brightness, volume)`, each 0 to 1. Volume is -1 when the slider has not appeared yet, which the
+/// Starts a brightness or volume swipe and returns the current `(brightness, volume)`, each 0 to 1.
+/// The volume view is in the window only for a volume swipe (`with_volume`), so a brightness swipe
+/// never touches the system volume pop-up. Volume is -1 when there is no slider yet, which the
 /// caller retries. Async so that it can wait for the main thread without being on it.
 #[tauri::command]
-pub async fn begin_screen_levels(app: AppHandle) -> Result<(f64, f64), String> {
+pub async fn begin_screen_levels(app: AppHandle, with_volume: bool) -> Result<(f64, f64), String> {
     let (sender, receiver) = std::sync::mpsc::channel();
     app.run_on_main_thread(move || {
-        attach_volume_view();
+        if with_volume {
+            attach_volume_view();
+        } else {
+            detach_volume_view();
+        }
         let _ = sender.send((brightness(), system_volume()));
     })
     .map_err(|error| error.to_string())?;
