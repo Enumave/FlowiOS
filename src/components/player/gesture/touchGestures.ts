@@ -2,6 +2,7 @@ import { useEffect, useRef, type RefObject } from "react";
 import { usePlayerStore } from "../../../store/usePlayerStore";
 import { MINIMIZE_REQUEST_EVENT, SHEET_ATTR, startPlayerSheet, type PlayerSheet, type SheetAction } from "../../../lib/playerSheet";
 import { planPlayerSheet } from "../../../lib/playerSheetTargets";
+import { beginScreenLevels, endScreenLevels, setScreenBrightness, setSystemVolume } from "../../../lib/screenLevels";
 
 /** One full-width sideways drag moves the video this far, as on Android. */
 const SCRUB_SPAN_SECONDS = 90;
@@ -19,7 +20,25 @@ const ZOOM_OVERSHOOT_MAX = 8;
 /** Releasing below this scale settles all the way back to unzoomed. */
 const ZOOM_RESET_THRESHOLD = 1.02;
 
+/**
+ * In fullscreen a vertical drag on the left half moves the screen brightness and one on the right
+ * half the system volume, as on Android; the middle third still pulls the player out of fullscreen.
+ * A full-height drag moves the level by this much (Android's VERTICAL_DRAG_SENSITIVITY).
+ */
+const LEVEL_SENSITIVITY = 1.5;
+/** Drags that start this close to the top or bottom edge belong to the system. */
+const EDGE_TOP_BOTTOM_PX = 40;
+/** Drags that start this close to a side edge belong to the system's back swipe. */
+const EDGE_SIDE_PX = 24;
+/** The middle zone, as a share of the width (Android: 33% to 67%). */
+const CENTER_ZONE_START = 0.33;
+const CENTER_ZONE_END = 0.67;
+/** How long the level read-out stays after the finger lifts. */
+const LEVEL_LINGER_MS = 700;
+
 export type ScrubPreview = { target: number; delta: number } | null;
+export type LevelKind = "brightness" | "volume";
+export type LevelPreview = { kind: LevelKind; value: number } | null;
 
 type Options = {
   enabled: boolean;
@@ -32,12 +51,14 @@ type Options = {
   /** Called when a touch turns into a gesture, so a pending hold-to-speed-up is dropped. */
   onGestureStart: () => void;
   onScrub: (preview: ScrubPreview) => void;
+  /** The brightness or volume read-out while a side swipe is under way; null when it should go. */
+  onLevel?: (level: LevelPreview) => void;
   /** Changing this (a new video) puts the zoom back. */
   resetKey?: string | null;
 };
 
 type Point = { x: number; y: number };
-type Mode = "idle" | "pending" | "scrub" | "vertical" | "pan" | "pinch" | "done";
+type Mode = "idle" | "pending" | "scrub" | "vertical" | "level" | "pan" | "pinch" | "done";
 
 function clamp(value: number, min: number, max: number) {
   return Math.min(max, Math.max(min, value));
@@ -46,7 +67,9 @@ function clamp(value: number, min: number, max: number) {
 /**
  * Touch gestures for the video, matching Flow for Android:
  * a sideways drag scrubs, a vertical drag moves the player between the watch page, the mini
- * player and fullscreen with the frame following the finger, and two fingers pinch to zoom and pan.
+ * player and fullscreen with the frame following the finger (in fullscreen the left and right
+ * halves change brightness and volume instead, and only the middle leaves fullscreen), and two
+ * fingers pinch to zoom and pan.
  * Taps, double taps and hold-to-speed-up stay with the overlay.
  */
 export function useTouchPlayerGestures(options: Options) {
@@ -67,6 +90,16 @@ export function useTouchPlayerGestures(options: Options) {
     let lastPreview: ScrubPreview = null;
     let swallowClick = false;
     let sheet: PlayerSheet | null = null;
+
+    let levelKind: LevelKind | null = null;
+    /** Null until the native side has said where the level stands. */
+    let levelValue: number | null = null;
+    let levelPendingDelta = 0;
+    let levelLastY = 0;
+    let levelSent = -1;
+    let levelFrame = 0;
+    let levelHideTimer: number | undefined;
+    let levelSession = 0;
 
     let scale = 1;
     let offsetX = 0;
@@ -127,6 +160,105 @@ export function useTouchPlayerGestures(options: Options) {
       return { x: (a.x + b.x) / 2, y: (a.y + b.y) / 2 };
     };
 
+    /** Where a touch landed on the video: a side half, the middle third, or too close to an edge. */
+    const zoneAt = (point: Point): "left" | "center" | "right" | "edge" => {
+      const rect = layer.getBoundingClientRect();
+      const x = point.x - rect.left;
+      const y = point.y - rect.top;
+      if (
+        y < EDGE_TOP_BOTTOM_PX ||
+        rect.height - y < EDGE_TOP_BOTTOM_PX ||
+        x < EDGE_SIDE_PX ||
+        rect.width - x < EDGE_SIDE_PX
+      ) {
+        return "edge";
+      }
+      if (x > rect.width * CENTER_ZONE_START && x < rect.width * CENTER_ZONE_END) return "center";
+      return x < rect.width / 2 ? "left" : "right";
+    };
+
+    const sendLevel = () => {
+      if (levelKind === null || levelValue === null) return;
+      if (levelSent >= 0 && Math.abs(levelValue - levelSent) < 0.002) return;
+      levelSent = levelValue;
+      if (levelKind === "brightness") setScreenBrightness(levelValue);
+      else setSystemVolume(levelValue);
+    };
+
+    const publishLevel = () => {
+      if (levelKind === null || levelValue === null) return;
+      latest.current.onLevel?.({ kind: levelKind, value: levelValue });
+      // Native calls are batched to one per frame; the read-out above follows every move.
+      if (!levelFrame) {
+        levelFrame = requestAnimationFrame(() => {
+          levelFrame = 0;
+          sendLevel();
+        });
+      }
+    };
+
+    const moveLevel = (y: number) => {
+      const height = Math.max(1, layer.getBoundingClientRect().height);
+      const delta = (-(y - levelLastY) / height) * LEVEL_SENSITIVITY;
+      levelLastY = y;
+      if (levelValue === null) {
+        levelPendingDelta += delta;
+        return;
+      }
+      // Accumulated and clamped step by step, so dragging past an end and back responds at once.
+      levelValue = clamp(levelValue + delta, 0, 1);
+      publishLevel();
+    };
+
+    const beginLevel = (kind: LevelKind, y: number) => {
+      begin("level");
+      window.clearTimeout(levelHideTimer);
+      levelKind = kind;
+      levelValue = null;
+      levelPendingDelta = 0;
+      levelLastY = y;
+      levelSent = -1;
+      const session = ++levelSession;
+      void (async () => {
+        let levels = await beginScreenLevels();
+        // The first time, iOS can take a moment to produce the volume slider.
+        for (let attempt = 0; attempt < 2 && levels && kind === "volume" && levels.volume === null; attempt++) {
+          await new Promise((resolve) => window.setTimeout(resolve, 90));
+          if (session !== levelSession) return;
+          levels = await beginScreenLevels();
+        }
+        if (session !== levelSession || levelKind !== kind) return;
+        const base = kind === "brightness" ? levels?.brightness : levels?.volume;
+        if (base === null || base === undefined) {
+          // Nothing to move (not iOS, or the native side did not answer): drop the gesture quietly.
+          levelKind = null;
+          mode = "done";
+          latest.current.onLevel?.(null);
+          endScreenLevels();
+          return;
+        }
+        levelValue = clamp(base + levelPendingDelta, 0, 1);
+        publishLevel();
+      })();
+    };
+
+    const endLevel = () => {
+      if (levelKind === null) return;
+      sendLevel();
+      if (levelFrame) {
+        cancelAnimationFrame(levelFrame);
+        levelFrame = 0;
+      }
+      levelKind = null;
+      levelValue = null;
+      // The read-out lingers a moment, and the volume view stays until it goes.
+      window.clearTimeout(levelHideTimer);
+      levelHideTimer = window.setTimeout(() => {
+        latest.current.onLevel?.(null);
+        endScreenLevels();
+      }, LEVEL_LINGER_MS);
+    };
+
     const begin = (next: Mode) => {
       mode = next;
       swallowClick = true;
@@ -171,6 +303,7 @@ export function useTouchPlayerGestures(options: Options) {
       } else if (pointers.size === 2) {
         sheet?.cancel();
         sheet = null;
+        endLevel();
         begin("pinch");
         latest.current.onScrub(null);
         pinchStartDistance = distanceBetween();
@@ -218,14 +351,25 @@ export function useTouchPlayerGestures(options: Options) {
           }
           begin("scrub");
         } else if (Math.abs(dy) > Math.abs(dx) * 1.3) {
-          const frame = layer.closest<HTMLElement>("[data-flow-player-frame]");
-          begin("vertical");
-          // The last swipe is still settling: let it finish rather than fight it.
-          if (frame?.hasAttribute(SHEET_ATTR)) {
-            mode = "done";
+          // In fullscreen the zone the touch started in decides what a vertical drag does.
+          const zone = usePlayerStore.getState().isVideoFullscreen ? zoneAt(start) : null;
+          if (zone === "edge") {
+            // Left to the system (back swipe, Control Center, the home indicator).
+            begin("done");
             return;
           }
-          sheet = startSheet(frame);
+          if (zone === "left" || zone === "right") {
+            beginLevel(zone === "left" ? "brightness" : "volume", event.clientY);
+          } else {
+            const frame = layer.closest<HTMLElement>("[data-flow-player-frame]");
+            begin("vertical");
+            // The last swipe is still settling: let it finish rather than fight it.
+            if (frame?.hasAttribute(SHEET_ATTR)) {
+              mode = "done";
+              return;
+            }
+            sheet = startSheet(frame);
+          }
         } else {
           return;
         }
@@ -240,6 +384,8 @@ export function useTouchPlayerGestures(options: Options) {
         latest.current.onScrub(lastPreview);
       } else if (mode === "vertical") {
         sheet?.update(dy, event.timeStamp);
+      } else if (mode === "level") {
+        moveLevel(event.clientY);
       } else if (mode === "pan") {
         offsetX = panStartOffset.x + (event.clientX - panStart.x);
         offsetY = panStartOffset.y + (event.clientY - panStart.y);
@@ -274,6 +420,9 @@ export function useTouchPlayerGestures(options: Options) {
           if (inFullscreen && dy > FULLSCREEN_DRAG_PX) latest.current.toggleFullscreen();
           else if (!inFullscreen && dy < -FULLSCREEN_DRAG_PX) latest.current.toggleFullscreen();
         }
+        mode = "done";
+      } else if (mode === "level") {
+        endLevel();
         mode = "done";
       } else if (mode === "pan") {
         settleZoom();
@@ -312,6 +461,11 @@ export function useTouchPlayerGestures(options: Options) {
       // A drag cut off by this teardown goes back; a committed one is left to finish its animation.
       sheet?.abort();
       sheet = null;
+      endLevel();
+      window.clearTimeout(levelHideTimer);
+      levelSession++;
+      latest.current.onLevel?.(null);
+      endScreenLevels();
       latest.current.onScrub(null);
       resetZoom();
     };
