@@ -1184,14 +1184,14 @@ replace(
 
 # 18. Fullscreen swipes as on Android: a vertical drag on the left half changes the brightness, on
 #     the right half the volume, and only the middle third pulls the player out of fullscreen. The
-#     gesture logic is in touchGestures.ts and the native side in src-tauri/src/ios_chrome.rs; this
-#     adds the read-out. Like Android's, it sits on the side opposite the swipe, so the hand does
-#     not cover the number it is aiming for.
+#     gesture logic is in touchGestures.ts, the native side in src-tauri/src/ios_chrome.rs and the
+#     read-out (Android's circular style, in the middle of the picture) in LevelHud.tsx; this puts
+#     the read-out into the overlay.
 replace(
     OVERLAY,
     'import { useTouchPlayerGestures, type ScrubPreview } from "./touchGestures";\n',
     'import { useTouchPlayerGestures, type LevelPreview, type ScrubPreview } from "./touchGestures";\n'
-    'import { Sun, Volume1, Volume2, VolumeX } from "lucide-react";\n',
+    'import { LevelHud } from "./LevelHud";\n',
 )
 replace(
     OVERLAY,
@@ -1207,34 +1207,7 @@ replace(
 replace(
     OVERLAY,
     "      {seekFeedback && <SeekFeedback feedback={seekFeedback} compact={isCompact} />}\n",
-    "      {levelPreview &&\n"
-    "        (() => {\n"
-    "          const percent = Math.round(levelPreview.value * 100);\n"
-    "          const LevelIcon =\n"
-    '            levelPreview.kind === "brightness"\n'
-    "              ? Sun\n"
-    "              : levelPreview.value > 0.6\n"
-    "                ? Volume2\n"
-    "                : levelPreview.value > 0.1\n"
-    "                  ? Volume1\n"
-    "                  : VolumeX;\n"
-    "          return (\n"
-    "            <div\n"
-    "              className={`pointer-events-none absolute top-1/2 z-30 flex w-14 -translate-y-1/2 flex-col items-center gap-3 rounded-3xl bg-chrome-black/55 px-2 py-4 ${\n"
-    '                levelPreview.kind === "brightness" ? "right-8" : "left-8"\n'
-    "              }`}\n"
-    "            >\n"
-    "              <LevelIcon size={22} className=\"text-chrome-white\" />\n"
-    '              <div className="relative h-40 w-1.5 overflow-hidden rounded-full bg-chrome-white/25">\n'
-    "                <div\n"
-    '                  className="absolute bottom-0 w-full rounded-full bg-[var(--color-primary)]"\n'
-    "                  style={{ height: `${percent}%` }}\n"
-    "                />\n"
-    "              </div>\n"
-    '              <span className="text-xs font-semibold tabular-nums text-chrome-white">{percent}%</span>\n'
-    "            </div>\n"
-    "          );\n"
-    "        })()}\n"
+    "      <LevelHud preview={levelPreview} />\n"
     "\n"
     "      {seekFeedback && <SeekFeedback feedback={seekFeedback} compact={isCompact} />}\n",
 )
