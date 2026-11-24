@@ -2,7 +2,13 @@ import { useEffect, useRef, type RefObject } from "react";
 import { usePlayerStore } from "../../../store/usePlayerStore";
 import { MINIMIZE_REQUEST_EVENT, SHEET_ATTR, startPlayerSheet, type PlayerSheet, type SheetAction } from "../../../lib/playerSheet";
 import { planPlayerSheet } from "../../../lib/playerSheetTargets";
-import { beginScreenLevels, endScreenLevels, setScreenBrightness, setSystemVolume } from "../../../lib/screenLevels";
+import {
+  beginScreenLevels,
+  endScreenLevels,
+  setScreenBrightness,
+  setSystemVolume,
+  type ScreenLevels,
+} from "../../../lib/screenLevels";
 
 /** One full-width sideways drag moves the video this far, as on Android. */
 const SCRUB_SPAN_SECONDS = 90;
@@ -33,11 +39,25 @@ const EDGE_SIDE_PX = 24;
 /** The middle zone, as a share of the width (Android: 33% to 67%). */
 const CENTER_ZONE_START = 0.33;
 const CENTER_ZONE_END = 0.67;
+export type LevelKind = "brightness" | "volume";
+
 /** How long the level read-out stays after the finger lifts. */
 const LEVEL_LINGER_MS = 700;
+/**
+ * Native calls are slow next to a finger: each one crosses into Rust and onto the main thread, and
+ * moving the brightness or volume is itself work for iOS. So the read-out follows every move, but
+ * the system is told at most this often, and only when the level has moved by a step worth hearing
+ * or seeing (iOS volume has 16 steps; brightness is smooth).
+ */
+const LEVEL_SEND_INTERVAL_MS = 50;
+const LEVEL_SEND_STEP: Record<LevelKind, number> = { brightness: 0.01, volume: 1 / 32 };
+/**
+ * A touch that lands on a side half in fullscreen warms the native side up after this long, so a
+ * drag finds the levels ready; a tap is gone by then and costs nothing.
+ */
+const LEVEL_PREFETCH_DELAY_MS = 60;
 
 export type ScrubPreview = { target: number; delta: number } | null;
-export type LevelKind = "brightness" | "volume";
 export type LevelPreview = { kind: LevelKind; value: number } | null;
 
 type Options = {
@@ -97,9 +117,13 @@ export function useTouchPlayerGestures(options: Options) {
     let levelPendingDelta = 0;
     let levelLastY = 0;
     let levelSent = -1;
-    let levelFrame = 0;
+    let levelSentAt = 0;
+    let levelSendTimer: number | undefined;
     let levelHideTimer: number | undefined;
     let levelSession = 0;
+    /** The native side warmed up by a touch on a side half, until a drag uses it or the touch ends. */
+    let prefetchTimer: number | undefined;
+    let prefetched: { kind: LevelKind; levels: Promise<ScreenLevels | null> } | null = null;
 
     let scale = 1;
     let offsetX = 0;
@@ -177,10 +201,15 @@ export function useTouchPlayerGestures(options: Options) {
       return x < rect.width / 2 ? "left" : "right";
     };
 
-    const sendLevel = () => {
+    const sendLevel = (force = false) => {
       if (levelKind === null || levelValue === null) return;
-      if (levelSent >= 0 && Math.abs(levelValue - levelSent) < 0.002) return;
+      const atEnd = levelValue <= 0 || levelValue >= 1;
+      if (levelSent === levelValue) return;
+      if (!force && !atEnd && levelSent >= 0 && Math.abs(levelValue - levelSent) < LEVEL_SEND_STEP[levelKind]) {
+        return;
+      }
       levelSent = levelValue;
+      levelSentAt = performance.now();
       if (levelKind === "brightness") setScreenBrightness(levelValue);
       else setSystemVolume(levelValue);
     };
@@ -188,12 +217,24 @@ export function useTouchPlayerGestures(options: Options) {
     const publishLevel = () => {
       if (levelKind === null || levelValue === null) return;
       latest.current.onLevel?.({ kind: levelKind, value: levelValue });
-      // Native calls are batched to one per frame; the read-out above follows every move.
-      if (!levelFrame) {
-        levelFrame = requestAnimationFrame(() => {
-          levelFrame = 0;
+      // The read-out above follows every move; the system hears about it at a steadier pace.
+      const wait = LEVEL_SEND_INTERVAL_MS - (performance.now() - levelSentAt);
+      if (wait <= 0) {
+        sendLevel();
+      } else if (levelSendTimer === undefined) {
+        levelSendTimer = window.setTimeout(() => {
+          levelSendTimer = undefined;
           sendLevel();
-        });
+        }, wait);
+      }
+    };
+
+    const dropPrefetch = () => {
+      window.clearTimeout(prefetchTimer);
+      prefetchTimer = undefined;
+      if (prefetched) {
+        prefetched = null;
+        endScreenLevels();
       }
     };
 
@@ -218,9 +259,14 @@ export function useTouchPlayerGestures(options: Options) {
       levelPendingDelta = 0;
       levelLastY = y;
       levelSent = -1;
+      levelSentAt = 0;
+      const warm = prefetched?.kind === kind ? prefetched.levels : null;
+      window.clearTimeout(prefetchTimer);
+      prefetchTimer = undefined;
+      prefetched = null;
       const session = ++levelSession;
       void (async () => {
-        let levels = await beginScreenLevels(kind === "volume");
+        let levels = await (warm ?? beginScreenLevels(kind === "volume"));
         // The first time, iOS can take a moment to produce the volume slider.
         for (let attempt = 0; attempt < 2 && levels && kind === "volume" && levels.volume === null; attempt++) {
           await new Promise((resolve) => window.setTimeout(resolve, 90));
@@ -244,16 +290,15 @@ export function useTouchPlayerGestures(options: Options) {
 
     const endLevel = () => {
       if (levelKind === null) return;
-      sendLevel();
-      if (levelFrame) {
-        cancelAnimationFrame(levelFrame);
-        levelFrame = 0;
-      }
+      window.clearTimeout(levelSendTimer);
+      levelSendTimer = undefined;
+      sendLevel(true);
       levelKind = null;
       levelValue = null;
       // The read-out lingers a moment, and the volume view stays until it goes.
       window.clearTimeout(levelHideTimer);
       levelHideTimer = window.setTimeout(() => {
+        levelHideTimer = undefined;
         latest.current.onLevel?.(null);
         endScreenLevels();
       }, LEVEL_LINGER_MS);
@@ -300,9 +345,21 @@ export function useTouchPlayerGestures(options: Options) {
         start = { x: event.clientX, y: event.clientY };
         baseTime = video()?.currentTime ?? 0;
         mode = "pending";
+        dropPrefetch();
+        if (usePlayerStore.getState().isVideoFullscreen) {
+          const zone = zoneAt(start);
+          if (zone === "left" || zone === "right") {
+            const kind: LevelKind = zone === "left" ? "brightness" : "volume";
+            prefetchTimer = window.setTimeout(() => {
+              prefetchTimer = undefined;
+              prefetched = { kind, levels: beginScreenLevels(kind === "volume") };
+            }, LEVEL_PREFETCH_DELAY_MS);
+          }
+        }
       } else if (pointers.size === 2) {
         sheet?.cancel();
         sheet = null;
+        dropPrefetch();
         endLevel();
         begin("pinch");
         latest.current.onScrub(null);
@@ -398,6 +455,7 @@ export function useTouchPlayerGestures(options: Options) {
       if (!pointers.has(event.pointerId)) return;
       const end = pointers.get(event.pointerId) ?? start;
       pointers.delete(event.pointerId);
+      if (mode !== "level") dropPrefetch();
 
       if (mode === "pinch") {
         if (pointers.size < 2) {
@@ -461,11 +519,16 @@ export function useTouchPlayerGestures(options: Options) {
       // A drag cut off by this teardown goes back; a committed one is left to finish its animation.
       sheet?.abort();
       sheet = null;
+      dropPrefetch();
+      const touchedNative = levelKind !== null || levelHideTimer !== undefined;
       endLevel();
       window.clearTimeout(levelHideTimer);
+      levelHideTimer = undefined;
       levelSession++;
-      latest.current.onLevel?.(null);
-      endScreenLevels();
+      if (touchedNative) {
+        latest.current.onLevel?.(null);
+        endScreenLevels();
+      }
       latest.current.onScrub(null);
       resetZoom();
     };
