@@ -74,28 +74,31 @@ describe("adaptive navigation", () => {
     expect(host.querySelector("nav")).toBeNull();
   });
 
-  it("shows the rail's tabs with a drawer button, and only a toggle where it can open", () => {
+  it("shows the rail's tabs, and a toggle only where it can open", () => {
     __setWindowSizeForTests(1024, 768);
     show("/subscriptions", createElement(NavigationRail, { onOpenDrawer: () => {} }));
     expect(host.querySelector("nav[data-flow-nav='rail']")).not.toBeNull();
     expect(host.querySelector("a[aria-current='page']")?.getAttribute("href")).toBe("/subscriptions");
-    // 1024 wide is expanded, not large: no expand toggle, only the drawer button.
+    // 1024 wide is expanded, not large: no expand toggle.
     expect(host.querySelector("[aria-expanded]")).toBeNull();
     __setWindowSizeForTests(1366, 1024);
     show("/subscriptions", createElement(NavigationRail, { onOpenDrawer: () => {} }));
     expect(host.querySelector("button[aria-expanded='false']")).not.toBeNull();
   });
 
-  it("opens the drawer from the rail", () => {
+  it("labels the tabs as Android does", () => {
     __setWindowSizeForTests(1024, 768);
-    const onOpenDrawer = vi.fn();
-    show("/", createElement(NavigationRail, { onOpenDrawer }));
-    const buttons = [...host.querySelectorAll("nav[data-flow-nav='rail'] button")];
-    act(() => (buttons[buttons.length - 1] as HTMLButtonElement).click());
-    expect(onOpenDrawer).toHaveBeenCalledOnce();
+    show("/", createElement(NavigationRail));
+    expect(labels()).toEqual(expect.arrayContaining(["Home", "Subs", "Library"]));
   });
 
-  it("turns the phone bar into a search field behind an icon, and keeps the field inline on a tablet", () => {
+  it("has no button of its own at the foot of the rail", () => {
+    __setWindowSizeForTests(1024, 768);
+    show("/", createElement(NavigationRail));
+    expect(host.querySelectorAll("nav[data-flow-nav='rail'] button").length).toBe(0);
+  });
+
+  it("turns the bar into a search field behind an icon, on a phone and on a tablet alike", () => {
     __setWindowSizeForTests(390, 844);
     show("/", createElement(AdaptiveTopbar));
     const searchButton = host.querySelector("button[data-flow-search-toggle]") as HTMLButtonElement | null;
@@ -106,7 +109,7 @@ describe("adaptive navigation", () => {
 
     __setWindowSizeForTests(1180, 820);
     show("/", createElement(AdaptiveTopbar));
-    expect(host.querySelector("button[data-flow-search-toggle]")).toBeNull();
-    expect(host.querySelector("input")).not.toBeNull();
+    expect(host.querySelector("button[data-flow-search-toggle]")).not.toBeNull();
+    expect(host.querySelector("input")).toBeNull();
   });
 });
