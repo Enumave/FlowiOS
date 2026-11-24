@@ -8,6 +8,9 @@
 3. Beside a rail the top bar sits in the content column and the rail runs the full height of the
    window, as in Flow for Android.
 4. Sync, Extensions and Support, which only the old sidebar reached, join the profile menu.
+5. The feed grid is automatic (three columns on a wide iPad) unless a count other than the desktop
+   default was chosen; titles take two lines; Continue Watching is drawn as on Android; the Shorts
+   shelf lines up with the other shelves.
 """
 
 BUTTON = (
@@ -99,6 +102,127 @@ GROUPS = [
             ),
         ],
         "profile menu links",
+    ),
+    (
+        "src/lib/useGridColumns.ts",
+        [
+            (
+                "  const [columns] = useNumberPref(SETTINGS.GRID_COLUMNS, IS_ADAPTIVE_LAYOUT ? 0 : GRID_COLUMNS_DEFAULT);\n",
+                "  const [storedColumns] = useNumberPref(SETTINGS.GRID_COLUMNS, IS_ADAPTIVE_LAYOUT ? 0 : GRID_COLUMNS_DEFAULT);\n"
+                "  // Automatic on the adaptive layouts, as on Android. 4 is only what a pinch or the desktop default\n"
+                "  // leaves behind, and pinning it would show four cramped columns on an iPad.\n"
+                "  const columns = IS_ADAPTIVE_LAYOUT && storedColumns === GRID_COLUMNS_DEFAULT ? 0 : storedColumns;\n",
+            ),
+        ],
+        "automatic column count",
+    ),
+    (
+        "src/components/video/VideoCard.tsx",
+        [
+            (
+                "import { Plus, Ban, Bell, BellRing, Check, Info, ListStart, MoreVertical, Trash2, GripHorizontal, Sparkles, Eye, EyeOff, Clock, ListPlus, ListVideo, Download, User, Share2 } from 'lucide-react';",
+                "import { Plus, Ban, Bell, BellRing, Check, Info, ListStart, MoreVertical, Trash2, GripHorizontal, Sparkles, Eye, EyeOff, Clock, ListPlus, ListVideo, Download, User, Share2, X } from 'lucide-react';",
+            ),
+            # Two title lines whatever the desktop setting says, as Android's titleMedium.
+            (
+                "            style={titleClampStyle}\n"
+                '            dir="auto"\n'
+                "            className={`text-chrome-zinc-100 font-medium cursor-pointer hover:text-[var(--color-primary)] transition-colors ${adaptiveCard.active ? 'text-base leading-[22px]' : 'text-sm leading-snug'}`}\n",
+                "            style={adaptiveCard.active ? undefined : titleClampStyle}\n"
+                '            dir="auto"\n'
+                "            className={`text-chrome-zinc-100 font-medium cursor-pointer hover:text-[var(--color-primary)] transition-colors ${adaptiveCard.active ? 'line-clamp-2 text-base leading-[22px]' : 'text-sm leading-snug'}`}\n",
+            ),
+            # Continue Watching thumbnails use the medium corner (12), not the large one.
+            (
+                "${adaptiveCard.active ? 'rounded-2xl' : 'rounded-xl'}",
+                "${adaptiveCard.active && !isContinueCard ? 'rounded-2xl' : 'rounded-xl'}",
+            ),
+            # Android's Continue Watching card: no avatar, small bold title, channel, a close button.
+            (
+                '      <div className={adaptiveCard.active ? "flex gap-2 ps-2 pt-3 pb-3 relative z-10" : "flex gap-3 pe-1 relative z-10"}>\n',
+                "      {adaptiveCard.active && isContinueCard ? (\n"
+                '        <div className="relative z-10 flex items-start pt-1.5">\n'
+                '          <div className="min-w-0 flex-1">\n'
+                "            <h3\n"
+                "              onClick={play}\n"
+                "              {...tabClickProps}\n"
+                '              dir="auto"\n'
+                '              className="line-clamp-2 cursor-pointer text-xs font-semibold leading-[13.4px] text-chrome-neutral-100"\n'
+                "            >\n"
+                "              {displayTitle}\n"
+                "            </h3>\n"
+                '            <div className="mt-1 truncate text-[11px] leading-4 text-chrome-neutral-400">\n'
+                "              <ChannelLabel name={byline} verified={video.isVerified} iconSize={11} />\n"
+                "            </div>\n"
+                "          </div>\n"
+                "          <button\n"
+                '            type="button"\n'
+                "            title={getString('music_remove_from_history')}\n"
+                "            aria-label={getString('music_remove_from_history')}\n"
+                "            onClick={(e) => { e.stopPropagation(); onRemoveFromContinueWatching?.(video.id); }}\n"
+                '            className="-me-1 -mt-1 shrink-0 rounded-full p-3.5 text-chrome-neutral-400 active:bg-chrome-neutral-800"\n'
+                "          >\n"
+                "            <X size={16} />\n"
+                "          </button>\n"
+                "        </div>\n"
+                "      ) : (\n"
+                '      <div className={adaptiveCard.active ? "flex gap-2 ps-2 pt-3 pb-3 relative z-10" : "flex gap-3 pe-1 relative z-10"}>\n',
+            ),
+            (
+                "        </div>\n      </div>\n\n      {renderMenu()}\n",
+                "        </div>\n      </div>\n      )}\n\n      {renderMenu()}\n",
+            ),
+        ],
+        "continue watching card",
+    ),
+    (
+        "src/components/shelf/VideoShelf.tsx",
+        [
+            (
+                'import React, { useMemo } from "react";\n',
+                'import React, { useMemo } from "react";\nimport { Link } from "react-router-dom";\n',
+            ),
+            (
+                '            <span dir="auto">{title}</span>\n',
+                "            {IS_ADAPTIVE_LAYOUT && variant === \"continue\" && (\n"
+                '              <svg viewBox="0 0 24 24" aria-hidden="true" className="h-6 w-6 shrink-0 fill-[var(--color-primary)]">\n'
+                '                <path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm-2 14.5v-9l6 4.5-6 4.5z" />\n'
+                "              </svg>\n"
+                "            )}\n"
+                '            <span dir="auto">{title}</span>\n',
+            ),
+            (
+                "          {action}\n        </div>\n      ) : null}\n",
+                "          {action}\n"
+                "          {IS_ADAPTIVE_LAYOUT && variant === \"continue\" && !action && (\n"
+                '            <Link to="/history" aria-label={title} className="-me-1 grid h-8 w-8 place-items-center text-chrome-neutral-400">\n'
+                '              <svg viewBox="0 0 24 24" aria-hidden="true" className="h-6 w-6 fill-current rtl:-scale-x-100">\n'
+                '                <path d="M8.59 16.59L13.17 12 8.59 7.41 10 6l6 6-6 6-1.41-1.41z" />\n'
+                "              </svg>\n"
+                "            </Link>\n"
+                "          )}\n"
+                "        </div>\n      ) : null}\n",
+            ),
+        ],
+        "continue watching header",
+    ),
+    (
+        "src/components/shelf/ShortsShelf.tsx",
+        [
+            (
+                'import { ShortCard } from "../shorts/ShortCard";\n',
+                'import { ShortCard } from "../shorts/ShortCard";\nimport { IS_ADAPTIVE_LAYOUT } from "../../lib/adaptive/runtime";\n',
+            ),
+            (
+                '      <div className="flex items-center justify-between">\n',
+                '      <div className={IS_ADAPTIVE_LAYOUT ? "flex items-center justify-between px-3" : "flex items-center justify-between"}>\n',
+            ),
+            (
+                '<ShelfScroller className="flex gap-4 px-3 -mx-3 pt-3 -mt-2 pb-3">',
+                '<ShelfScroller className={IS_ADAPTIVE_LAYOUT ? "flex gap-[10px] px-3 pb-3" : "flex gap-4 px-3 -mx-3 pt-3 -mt-2 pb-3"}>',
+            ),
+        ],
+        "shorts shelf",
     ),
 ]
 
