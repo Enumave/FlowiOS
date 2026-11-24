@@ -1,5 +1,5 @@
 import { useEffect, useImperativeHandle, useRef, type Ref } from "react";
-import { Sun, Volume1, Volume2, VolumeX } from "lucide-react";
+import { Sun, Volume, Volume1, Volume2, VolumeX } from "lucide-react";
 import type { LevelPreview } from "./touchGestures";
 
 /**
@@ -20,25 +20,36 @@ const RADIUS = (RING - STROKE) / 2;
 const CIRCUMFERENCE = 2 * Math.PI * RADIUS;
 const FADE_MS = 150;
 
-type IconKey = "sun" | "high" | "low" | "mute";
+type IconKey = "sun" | "high" | "low" | "quiet" | "mute";
 
 export type LevelHudHandle = {
   /** Shows or updates the read-out with the level; null fades it out. */
   set: (level: LevelPreview) => void;
 };
 
+/**
+ * Android's thresholds: above 60% two waves, above 10% one wave, below that the bare speaker. The
+ * crossed-out speaker is only for 0%, so a quiet but audible level does not look muted.
+ */
 function iconKeyFor(level: NonNullable<LevelPreview>): IconKey {
   if (level.kind === "brightness") return "sun";
+  if (Math.round(level.value * 100) <= 0) return "mute";
   if (level.value > 0.6) return "high";
   if (level.value > 0.1) return "low";
-  return "mute";
+  return "quiet";
 }
 
 export function LevelHud({ ref }: { ref?: Ref<LevelHudHandle> }) {
   const root = useRef<HTMLDivElement>(null);
   const arc = useRef<SVGCircleElement>(null);
   const label = useRef<HTMLSpanElement>(null);
-  const icons = useRef<Record<IconKey, HTMLSpanElement | null>>({ sun: null, high: null, low: null, mute: null });
+  const icons = useRef<Record<IconKey, HTMLSpanElement | null>>({
+    sun: null,
+    high: null,
+    low: null,
+    quiet: null,
+    mute: null,
+  });
   const state = useRef<{ icon: IconKey | null; shown: boolean; hideTimer: number | undefined }>({
     icon: null,
     shown: false,
@@ -141,6 +152,9 @@ export function LevelHud({ ref }: { ref?: Ref<LevelHudHandle> }) {
             </span>
             <span ref={holder("low")} className="hidden text-chrome-white">
               <Volume1 size={ICON} />
+            </span>
+            <span ref={holder("quiet")} className="hidden text-chrome-white">
+              <Volume size={ICON} />
             </span>
             <span ref={holder("mute")} className="hidden text-chrome-white">
               <VolumeX size={ICON} />
