@@ -309,6 +309,14 @@ replace_group(
     ],
     "video grid",
 )
+_CHANNEL_LINE = (
+    "          <div\n"
+    "            onClick={(e) => { void handleChannelNavigate(e); }}\n"
+    "            className={`text-chrome-zinc-400 text-[13px] mt-0.5 truncate transition-colors ${isLocalFile ? \"\" : \"cursor-pointer hover:text-chrome-zinc-300\"}`}\n"
+    "          >\n"
+    "            <ChannelLabel name={byline} verified={video.isVerified} />\n"
+    "          </div>\n"
+)
 replace_group(
     "src/components/video/VideoCard.tsx",
     [
@@ -354,44 +362,30 @@ replace_group(
             "            className={`text-chrome-zinc-100 font-medium cursor-pointer hover:text-[var(--color-primary)] transition-colors ${adaptiveCard.active ? 'text-base leading-[22px]' : 'text-sm leading-snug'}`}\n",
         ),
         (
-            "          <div\n"
-            "            onClick={(e) => { void handleChannelNavigate(e); }}\n"
-            "            className={`text-chrome-zinc-400 text-[13px] mt-0.5 truncate transition-colors ${isLocalFile ? \"\" : \"cursor-pointer hover:text-chrome-zinc-300\"}`}\n"
-            "          >\n"
-            "            <ChannelLabel name={byline} verified={video.isVerified} />\n"
-            "          </div>\n"
-            "\n"
-            "          {/* View Count + Published */}\n"
-            '          <div className="text-chrome-zinc-500 text-[13px]">\n'
-            "            {video.viewCountText && <bdi>{video.viewCountText}</bdi>}\n"
-            '            {video.viewCountText && publishedText && <span className="mx-1">•</span>}\n'
-            "            {publishedText && <bdi>{publishedText}</bdi>}\n"
-            "          </div>\n",
-            "          {adaptiveCard.active ? (\n"
-            '            <div className="mt-1 line-clamp-2 text-xs leading-4 text-chrome-neutral-400">\n'
-            "              <span onClick={(e) => { void handleChannelNavigate(e); }} className=\"inline-flex align-bottom\">\n"
-            "                <ChannelLabel name={byline} verified={video.isVerified} />\n"
-            "              </span>\n"
-            '              {video.viewCountText && <><span className="mx-1">•</span><bdi>{video.viewCountText}</bdi></>}\n'
-            '              {publishedText && <><span className="mx-1">•</span><bdi>{publishedText}</bdi></>}\n'
-            "            </div>\n"
-            "          ) : (\n"
-            "            <>\n"
-            "          <div\n"
-            "            onClick={(e) => { void handleChannelNavigate(e); }}\n"
-            "            className={`text-chrome-zinc-400 text-[13px] mt-0.5 truncate transition-colors ${isLocalFile ? \"\" : \"cursor-pointer hover:text-chrome-zinc-300\"}`}\n"
-            "          >\n"
-            "            <ChannelLabel name={byline} verified={video.isVerified} />\n"
-            "          </div>\n"
-            "\n"
-            "          {/* View Count + Published */}\n"
-            '          <div className="text-chrome-zinc-500 text-[13px]">\n'
-            "            {video.viewCountText && <bdi>{video.viewCountText}</bdi>}\n"
-            '            {video.viewCountText && publishedText && <span className="mx-1">•</span>}\n'
-            "            {publishedText && <bdi>{publishedText}</bdi>}\n"
-            "          </div>\n"
-            "            </>\n"
-            "          )}\n",
+            # The byline: upstream now draws views and date with CardByline, older code inline.
+            (
+                _CHANNEL_LINE + "\n" + '          {/* View Count + Published */}\n'
+                '          <CardByline views={video.viewCountText} published={publishedText} className="text-chrome-zinc-500 text-[13px]" />\n',
+                _CHANNEL_LINE + "\n" + '          {/* View Count + Published */}\n'
+                '          <div className="text-chrome-zinc-500 text-[13px]">\n'
+                "            {video.viewCountText && <bdi>{video.viewCountText}</bdi>}\n"
+                '            {video.viewCountText && publishedText && <span className="mx-1">•</span>}\n'
+                "            {publishedText && <bdi>{publishedText}</bdi>}\n"
+                "          </div>\n",
+            ),
+            lambda matched: (
+                "          {adaptiveCard.active ? (\n"
+                '            <div className="mt-1 line-clamp-2 text-xs leading-4 text-chrome-neutral-400">\n'
+                '              <span onClick={(e) => { void handleChannelNavigate(e); }} className="inline-flex align-bottom">\n'
+                "                <ChannelLabel name={byline} verified={video.isVerified} />\n"
+                "              </span>\n"
+                '              {video.viewCountText && <><span className="mx-1">•</span><bdi>{video.viewCountText}</bdi></>}\n'
+                '              {publishedText && <><span className="mx-1">•</span><bdi>{publishedText}</bdi></>}\n'
+                "            </div>\n"
+                "          ) : (\n"
+                "            <>\n" + matched + "            </>\n"
+                "          )}\n"
+            ),
         ),
         (
             '            className="p-1 rounded-full text-chrome-zinc-500 hover:text-chrome-zinc-200 hover:bg-chrome-zinc-800 opacity-0 group-hover:opacity-100 transition duration-150 ease-out mt-0.5"\n',
@@ -434,9 +428,11 @@ replace_group(
             '<ShelfScroller className={IS_ADAPTIVE_LAYOUT ? "flex gap-[10px] px-3 scroll-px-3 pb-3 snap-x" : "flex gap-4 px-3 scroll-px-3 -mx-3 pt-3 -mt-2 pb-3 snap-x"}>',
         ),
         (
-            '            className="w-[280px] sm:w-[320px] shrink-0 transform transition-transform duration-300 hover:translate-y-[-2px]"\n',
-            '            className="w-[280px] sm:w-[320px] shrink-0 transform transition-transform duration-300 hover:translate-y-[-2px]"\n'
-            "            style={laneStyle}\n",
+            (
+                '            className="w-[280px] sm:w-[320px] shrink-0 transform transition-transform duration-300 hover:translate-y-[-2px]"\n',
+                '            className={`w-[280px] sm:w-[320px] shrink-0 ${hoverMotion("transform transition-transform duration-300 hover:translate-y-[-2px]")}`}\n',
+            ),
+            lambda matched: matched + "            style={laneStyle}\n",
         ),
     ],
     "video shelf",
