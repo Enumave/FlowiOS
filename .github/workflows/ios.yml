@@ -36,6 +36,9 @@ jobs:
       - name: Apply phone and tablet layouts from Flow for Android
         run: python3 ios-adaptive.py
 
+      - name: Settle the mini player into corners like Android
+        run: python3 ios-mini-player.py
+      
       - name: Fade the Watch page when the player is dragged to the mini player
         run: python3 ios-sheet-fade.py
 
