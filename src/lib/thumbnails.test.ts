@@ -1,9 +1,10 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
 import {
   avatarSize,
+  upgradeCommunityPostImageUrl,
+  upgradeMusicImageUrl,
   buildThumbnailSources,
   resolveYoutubeThumbnailCandidates,
-  thumbnailNeedsHighRes,
   upgradeAvatarUrl,
 } from "./thumbnails";
 
@@ -11,43 +12,44 @@ const ID = "dQw4w9WgXcQ";
 const MAXRES = `https://i.ytimg.com/vi/${ID}/maxresdefault.jpg`;
 const HQ720 = `https://i.ytimg.com/vi/${ID}/hq720.jpg`;
 const HQDEFAULT = `https://i.ytimg.com/vi/${ID}/hqdefault.jpg`;
+const SDDEFAULT = `https://i.ytimg.com/vi/${ID}/sddefault.jpg`;
+const MQDEFAULT = `https://i.ytimg.com/vi/${ID}/mqdefault.jpg`;
+const webp = (url: string) => url.replace("/vi/", "/vi_webp/").replace(".jpg", ".webp");
+const tier = (url: string) => [webp(url), url];
 
 afterEach(() => {
   vi.unstubAllGlobals();
 });
 
 describe("resolveYoutubeThumbnailCandidates", () => {
-  it("starts a card on hqdefault on a 1× screen", () => {
+  it("starts a card of unknown width on hqdefault on a 1× screen", () => {
     vi.stubGlobal("devicePixelRatio", 1);
-    expect(resolveYoutubeThumbnailCandidates(ID, HQ720)).toEqual([HQDEFAULT, HQ720]);
+    expect(resolveYoutubeThumbnailCandidates(ID, HQ720)).toEqual([...tier(HQDEFAULT), HQ720]);
   });
 
-  it("starts a card on hq720 on a HiDPI screen, falling back to hqdefault", () => {
+  it("starts a card of unknown width on hq720 on a HiDPI screen, falling back to hqdefault", () => {
     vi.stubGlobal("devicePixelRatio", 2);
-    expect(resolveYoutubeThumbnailCandidates(ID, HQ720)).toEqual([HQ720, HQDEFAULT]);
+    expect(resolveYoutubeThumbnailCandidates(ID, HQ720)).toEqual([...tier(HQ720), ...tier(HQDEFAULT)]);
   });
 
-  it("follows a measured card width over the screen's pixel ratio", () => {
-    vi.stubGlobal("devicePixelRatio", 1);
-    expect(resolveYoutubeThumbnailCandidates(ID, null, true)).toEqual([HQ720, HQDEFAULT]);
+  it("follows the card's drawn width", () => {
     vi.stubGlobal("devicePixelRatio", 2);
-    expect(resolveYoutubeThumbnailCandidates(ID, null, false)).toEqual([HQDEFAULT]);
+    expect(resolveYoutubeThumbnailCandidates(ID, null, 160)).toEqual([...tier(MQDEFAULT), ...tier(HQDEFAULT)]);
+    expect(resolveYoutubeThumbnailCandidates(ID, null, 288)).toEqual([...tier(SDDEFAULT), ...tier(HQDEFAULT)]);
+    vi.stubGlobal("devicePixelRatio", 1);
+    expect(resolveYoutubeThumbnailCandidates(ID, null, 780)).toEqual([...tier(HQ720), ...tier(HQDEFAULT)]);
+  });
+
+  it("reads the video id from a cover URL, keeping the URL itself last", () => {
+    vi.stubGlobal("devicePixelRatio", 2);
+    const cover = `https://i.ytimg.com/vi/${ID}/hq720.jpg?sqp=abc`;
+    expect(resolveYoutubeThumbnailCandidates(null, cover, 200)).toEqual([...tier(HQDEFAULT), cover]);
   });
 
   it("keeps a non-YouTube URL as the last resort", () => {
     vi.stubGlobal("devicePixelRatio", 1);
     const url = "https://example.com/thumb.jpg";
-    expect(resolveYoutubeThumbnailCandidates(ID, url)).toEqual([HQDEFAULT, url]);
-  });
-});
-
-describe("thumbnailNeedsHighRes", () => {
-  it("asks for hq720 once a card would upscale hqdefault", () => {
-    vi.stubGlobal("devicePixelRatio", 1);
-    expect(thumbnailNeedsHighRes(420)).toBe(false);
-    expect(thumbnailNeedsHighRes(600)).toBe(true);
-    vi.stubGlobal("devicePixelRatio", 2);
-    expect(thumbnailNeedsHighRes(260)).toBe(true);
+    expect(resolveYoutubeThumbnailCandidates(ID, url)).toEqual([...tier(HQDEFAULT), url]);
   });
 });
 
@@ -86,5 +88,28 @@ describe("avatarSize", () => {
 
   it("puts the size into the avatar's address", () => {
     expect(upgradeAvatarUrl("https://yt3.ggpht.com/abc=s176-c-k-c0x00ffffff-no-rj", avatarSize(36, 2))).toContain("=s88");
+  });
+});
+
+describe("upgradeMusicImageUrl", () => {
+  it("crops a small square from mqdefault and a large one from hq720", () => {
+    const art = `https://i.ytimg.com/vi/${ID}/hqdefault.jpg?sqp=abc`;
+    expect(upgradeMusicImageUrl(art, 128)).toBe(MQDEFAULT);
+    expect(upgradeMusicImageUrl(art, 512)).toBe(`https://i.ytimg.com/vi/${ID}/hq720.jpg?sqp=abc`);
+    expect(upgradeMusicImageUrl(art)).toBe(`https://i.ytimg.com/vi/${ID}/hq720.jpg?sqp=abc`);
+  });
+
+  it("asks Google's CDN for the drawn size", () => {
+    expect(upgradeMusicImageUrl("https://lh3.googleusercontent.com/abc=w60-h60-l90-rj", 256)).toBe(
+      "https://lh3.googleusercontent.com/abc=w256-h256-p-l90-rj",
+    );
+  });
+});
+
+describe("upgradeCommunityPostImageUrl", () => {
+  it("asks for the drawn size, or 2048 when it is unknown", () => {
+    const image = "https://yt3.ggpht.com/abc=s640-c-fcrop64=1";
+    expect(upgradeCommunityPostImageUrl(image, 1536)).toBe("https://yt3.ggpht.com/abc=s1536");
+    expect(upgradeCommunityPostImageUrl(image)).toBe("https://yt3.ggpht.com/abc=s2048");
   });
 });

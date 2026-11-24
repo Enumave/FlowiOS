@@ -17,8 +17,9 @@ import { getVideoDetails } from '../../lib/api/youtube';
 import { useSettingsStore } from '../../store/useSettingsStore';
 import { useAppSettingsStore } from '../../store/useAppSettingsStore';
 import { useChannelAvatar } from '../../lib/useChannelAvatar';
-import { isUnavailableYoutubeThumbnail, resolveYoutubeThumbnailCandidates, upgradeAvatarUrl, avatarSize } from '../../lib/thumbnails';
-import { IS_LINUX_RUNTIME } from '../../lib/platform';
+import { isUnavailableYoutubeThumbnail, isYoutubeVideoId, resolveYoutubeThumbnailCandidates, upgradeAvatarUrl, avatarSize } from '../../lib/thumbnails';
+import { thumbnailColorSample } from '../../lib/thumbnailTiers';
+import { IS_LINUX_RUNTIME, hoverMotion } from '../../lib/platform';
 import { useProxiedImageUrl } from '../../lib/useProxiedImageUrl';
 import { SETTINGS } from '../../lib/settings/schema';
 import type { MenuAnchor } from '../ui/AnchoredPortalMenu';
@@ -43,10 +44,10 @@ import { usePlayerStore } from '../../store/usePlayerStore';
 import { useDownloadStore } from '../../store/useDownloadStore';
 import { useDownloadsLibraryStore } from '../../store/useDownloadsLibraryStore';
 import { findDownloadedRecord, useIsDownloaded } from '../../lib/useDownloads';
-import { extractDominantColorFromImage, type Rgb } from '../../lib/useDominantColor';
+import { useDominantColor } from '../../lib/useDominantColor';
 import { formatPublishedText, formatYouTubeRelativeTime } from '../../lib/publishedDate';
 import { ColorWash, COLOR_WASH_HOST } from '../ui/ColorWash';
-import { CardPills, ChannelLabel, CollabAvatars, UpcomingBadge } from "./CardMeta";
+import { CardByline, CardPills, ChannelLabel, CollabAvatars, UpcomingBadge } from "./CardMeta";
 import { collaboratorsByline } from "../../lib/collaborators";
 import { backgroundTabClickProps, cardKeyboardProps, openedInBackgroundTab, routeForVideo } from '../../lib/openTarget';
 import { openActions } from '../common/openActions';
@@ -76,8 +77,11 @@ export interface VideoCardProps {
   reason?: string;
   /** A short line under the card's details saying why it is here. */
   reasonLine?: string;
-  /** Whether the card is drawn wider than `hqdefault`; left out, the screen's pixel ratio decides. */
-  highResThumbnail?: boolean;
+  /**
+   * The widest the thumbnail is drawn, in CSS px, so it loads the smallest file that stays sharp.
+   * Rows know their own width; a grid card left without one lets the screen's pixel ratio decide.
+   */
+  thumbnailWidth?: number;
   /** Drawn over the thumbnail, such as a download's progress. */
   thumbnailOverlay?: React.ReactNode;
   /** Replaces what Remove download does in the menu, for a list that offers Undo. */
@@ -88,13 +92,13 @@ export interface VideoCardProps {
   searchQuery?: string;
 }
 
-/*
-  CORS mode exists solely so the hover wash can read the thumbnail's pixels back
-  off a canvas. That readback is disabled on Linux (WebKitGTK composites on the
-  CPU), where the only thing the attribute still buys is a stricter fetch that
-  cannot reuse a plain cached image.
-*/
-const THUMBNAIL_CROSS_ORIGIN = IS_LINUX_RUNTIME ? undefined : 'anonymous';
+
+// The widest each row layout draws its thumbnail: `w-40`, `sm:w-48` and `xl:w-[360px]`.
+const ROW_THUMBNAIL_WIDTHS: Partial<Record<NonNullable<VideoCardProps['variant']>, number>> = {
+  compact: 160,
+  list: 192,
+  search: 360,
+};
 
 function formatDuration(seconds?: number | null) {
   if (!seconds) return '';
@@ -145,7 +149,7 @@ function VideoCardComponent({
   showAddedDate = false,
   reason,
   reasonLine,
-  highResThumbnail,
+  thumbnailWidth,
   thumbnailOverlay,
   onRemoveDownload,
   menuActions: ownMenuActions,
@@ -178,8 +182,9 @@ function VideoCardComponent({
   const shortsWatched = useWatchedVideoIds(showMenu && !!video.isShort);
   const isWatched = isMarkedWatched || watchedInHistory || shortsWatched.has(video.id);
   const [menuAnchor, setMenuAnchor] = useState<MenuAnchor | null>(null);
-  const [dominantColor, setDominantColor] = useState<Rgb | null>(null);
   const [isHovered, setIsHovered] = useState(false);
+  // The hover wash samples its colour once the pointer first reaches the card, not for every card in a feed.
+  const [washPrimed, setWashPrimed] = useState(false);
   const cardRef = useRef<HTMLDivElement>(null);
   const thumbnailRef = useRef<HTMLImageElement>(null);
 
@@ -255,11 +260,18 @@ function VideoCardComponent({
     cardRef,
   );
   const displayTitle = overriddenTitle || originalTitle || video.title;
+  const drawnThumbnailWidth = thumbnailWidth ?? ROW_THUMBNAIL_WIDTHS[variant];
   const thumbnailCandidates = useMemo(
-    () => resolveYoutubeThumbnailCandidates(video.id, overriddenThumbnail || video.thumbnailUrl, highResThumbnail),
-    [highResThumbnail, overriddenThumbnail, video.id, video.thumbnailUrl],
+    () => resolveYoutubeThumbnailCandidates(video.id, overriddenThumbnail || video.thumbnailUrl, drawnThumbnailWidth),
+    [drawnThumbnailWidth, overriddenThumbnail, video.id, video.thumbnailUrl],
   );
-  const { src: displayThumbnail, onError: handleThumbnailError } = useImageFallback(thumbnailCandidates);
+  const {
+    src: displayThumbnail,
+    onError: handleThumbnailError,
+    onLoad: rememberThumbnailLoad,
+    isLast: isLastThumbnail,
+  } = useImageFallback(thumbnailCandidates);
+  const thumbnailWashSample = isYoutubeVideoId(video.id) ? thumbnailColorSample(video.id) : displayThumbnail;
 
   // Channels, live streams, premieres and local files have no storyboard to preview.
   const hoverPreview = isHovered && !isChannel && !isLiveVideo && !video.isUpcoming && !isLocalMediaId(video.id) ? (
@@ -271,22 +283,18 @@ function VideoCardComponent({
     />
   ) : null;
 
+  /*
+    getImageData is a synchronous pixel readback: cheap on GPU-composited
+    webviews, janky on Linux's CPU path (and it fires while the cursor sweeps
+    across cards mid-scroll). The color-mix fallback covers Linux.
+  */
+  const washSample = washPrimed && !IS_LINUX_RUNTIME ? thumbnailWashSample : null;
+  const dominantColor = useDominantColor(washSample);
+
   const handleMouseEnter = useCallback(() => {
     setIsHovered(true);
-    // getImageData is a synchronous pixel readback — cheap on GPU-composited
-    // webviews, janky on Linux's CPU path (and it fires while the cursor
-    // sweeps across cards mid-scroll). The color-mix fallback covers Linux.
-    if (IS_LINUX_RUNTIME) return;
-    const thumbnail = thumbnailRef.current;
-    // `complete` alone is true for a broken image too — the same
-    // `complete && naturalWidth` pair the music cards use.
-    if (!dominantColor && thumbnail?.complete && thumbnail.naturalWidth > 0) {
-      const color = extractDominantColorFromImage(thumbnail);
-      if (color) {
-        setDominantColor(color);
-      }
-    }
-  }, [dominantColor]);
+    setWashPrimed(true);
+  }, []);
 
   const handleMouseLeave = useCallback(() => {
     setIsHovered(false);
@@ -296,19 +304,13 @@ function VideoCardComponent({
     const img = event.currentTarget;
     if (
       isUnavailableYoutubeThumbnail(img) &&
-      displayThumbnail !== thumbnailCandidates[thumbnailCandidates.length - 1]
+      !isLastThumbnail
     ) {
       handleThumbnailError();
       return;
     }
-
-    if (!IS_LINUX_RUNTIME && isHovered && !dominantColor) {
-      const color = extractDominantColorFromImage(img);
-      if (color) {
-        setDominantColor(color);
-      }
-    }
-  }, [displayThumbnail, dominantColor, handleThumbnailError, isHovered, thumbnailCandidates]);
+    rememberThumbnailLoad();
+  }, [handleThumbnailError, isLastThumbnail, rememberThumbnailLoad]);
 
   const handleContextMenu = useCallback((e: React.MouseEvent) => {
     if (isChannel) return;
@@ -348,10 +350,6 @@ function VideoCardComponent({
       ? historyPercent || (isMarkedWatched ? 100 : 0)
       : 0;
   const showsProgressBar = isHistoryCard || isContinueCard || progressPercent > 0;
-
-  useEffect(() => {
-    setDominantColor(null);
-  }, [overriddenThumbnail, video.id, video.thumbnailUrl]);
 
   const handleSubscribeToggle = (e: React.MouseEvent) => {
     e.stopPropagation();
@@ -655,7 +653,7 @@ function VideoCardComponent({
         onClick={() => navigate(`/channel/${cleanId}`)}
         className="flex flex-col items-center justify-center p-6 bg-surface rounded-xl border border-chrome-zinc-800 hover:bg-chrome-zinc-900/50 transition-colors group cursor-pointer"
       >
-        <div className="w-24 h-24 rounded-full overflow-hidden mb-4 border border-chrome-zinc-800 group-hover:scale-105 transition-transform duration-300">
+        <div className={`w-24 h-24 rounded-full overflow-hidden mb-4 border border-chrome-zinc-800 ${hoverMotion("group-hover:scale-105 transition-transform duration-300")}`}>
           {channelCardAvatarUrl ? (
             <img
               src={channelCardAvatarUrl}
@@ -713,7 +711,6 @@ function VideoCardComponent({
               src={displayThumbnail}
               alt={displayTitle}
               className="h-full w-full object-cover"
-              crossOrigin={THUMBNAIL_CROSS_ORIGIN}
               loading="lazy"
               decoding="async"
               onLoad={handleThumbnailLoad}
@@ -752,11 +749,7 @@ function VideoCardComponent({
           >
             <ChannelLabel name={byline} verified={video.isVerified} />
           </button>
-          <div className="text-[13px] text-chrome-neutral-500">
-            {video.viewCountText && <bdi>{video.viewCountText}</bdi>}
-            {video.viewCountText && publishedText && <span className="mx-1">•</span>}
-            {publishedText && <bdi>{publishedText}</bdi>}
-          </div>
+          <CardByline views={video.viewCountText} published={publishedText} className="text-[13px] text-chrome-neutral-500" />
           <CardPills video={video} />
         </div>
 
@@ -821,7 +814,6 @@ function VideoCardComponent({
               src={displayThumbnail}
               alt={displayTitle}
               className="h-full w-full object-cover"
-              crossOrigin={THUMBNAIL_CROSS_ORIGIN}
               loading="lazy"
               decoding="async"
               onLoad={handleThumbnailLoad}
@@ -854,11 +846,7 @@ function VideoCardComponent({
             >
               {displayTitle}
             </h3>
-            <div className="text-[13px] tabular-nums text-chrome-neutral-400">
-              {video.viewCountText && <bdi>{video.viewCountText}</bdi>}
-              {video.viewCountText && publishedText && <span className="mx-1">•</span>}
-              {publishedText && <bdi>{publishedText}</bdi>}
-            </div>
+            <CardByline views={video.viewCountText} published={publishedText} className="text-[13px] tabular-nums text-chrome-neutral-400" />
             <button
               type="button"
               onClick={(e) => { void handleChannelNavigate(e); }}
@@ -901,19 +889,15 @@ function VideoCardComponent({
             >
               <ChannelLabel name={byline} verified={video.isVerified} />
             </button>
-            <div className="mt-0.5 text-[13px] text-chrome-neutral-500">
-              {showAddedDate && video.addedAtInPlaylist ? (
+            {showAddedDate && video.addedAtInPlaylist ? (
+              <div className="mt-0.5 text-[13px] text-chrome-neutral-500">
                 <span>
                   {getString("playlist_video_added_template", formatYouTubeRelativeTime(video.addedAtInPlaylist))}
                 </span>
-              ) : (
-                <>
-                  {video.viewCountText && <bdi>{video.viewCountText}</bdi>}
-                  {video.viewCountText && publishedText && <span className="mx-1">•</span>}
-                  {publishedText && <bdi>{publishedText}</bdi>}
-                </>
-              )}
-            </div>
+              </div>
+            ) : (
+              <CardByline views={video.viewCountText} published={publishedText} className="mt-0.5 text-[13px] text-chrome-neutral-500" />
+            )}
             {reasonLine && <p className="truncate text-[13px] text-chrome-neutral-500">{reasonLine}</p>}
             <CardPills video={video} />
           </div>
@@ -957,8 +941,7 @@ function VideoCardComponent({
             ref={thumbnailRef}
             src={displayThumbnail}
             alt={displayTitle}
-            className={`w-full h-full object-cover${IS_LINUX_RUNTIME ? "" : " transition-transform duration-300 group-hover:scale-[1.03]"}`}
-            crossOrigin={THUMBNAIL_CROSS_ORIGIN}
+            className={`w-full h-full object-cover ${hoverMotion("transition-transform duration-300 group-hover:scale-[1.03]")}`}
             loading="lazy"
             decoding="async"
             onLoad={handleThumbnailLoad}
@@ -1043,11 +1026,7 @@ function VideoCardComponent({
           </div>
 
           {/* View Count + Published */}
-          <div className="text-chrome-zinc-500 text-[13px]">
-            {video.viewCountText && <bdi>{video.viewCountText}</bdi>}
-            {video.viewCountText && publishedText && <span className="mx-1">•</span>}
-            {publishedText && <bdi>{publishedText}</bdi>}
-          </div>
+          <CardByline views={video.viewCountText} published={publishedText} className="text-chrome-zinc-500 text-[13px]" />
           {reasonLine && <p className="truncate text-[13px] text-chrome-neutral-500">{reasonLine}</p>}
           <CardPills video={video} />
         </div>

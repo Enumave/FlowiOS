@@ -1,11 +1,12 @@
-import { Fragment, memo, useRef, type ReactNode } from 'react';
+import { Fragment, memo, useMemo, useRef, type ReactNode } from 'react';
 import type { VideoSummary } from '../../types/video';
 import { VideoCard } from './VideoCard';
 import { SkeletonLoader } from '../ui/SkeletonLoader';
 import { useGridStyle, useResolvedGridColumns } from '../../lib/useGridColumns';
 import { IMPRESSION_ATTRIBUTE, useFeedImpressions } from '../../lib/useFeedImpressions';
 import { GRID_INDEX_ATTRIBUTE, useLastVisibleCard } from '../../lib/useLastVisibleCard';
-import { thumbnailNeedsHighRes } from '../../lib/thumbnails';
+import { useWidestWidth } from '../../lib/useWidestWidth';
+import { uniqueVideoKeys } from '../../lib/videoKeys';
 import { SCROLL_ANCHOR_ATTRIBUTE } from '../../lib/useScrollAnchor';
 
 interface VideoGridProps {
@@ -82,12 +83,12 @@ function VideoGridComponent({
   useLastVisibleCard(gridRef, loading ? 0 : videos.length, onLastVisibleIndex);
   const gridStyle = useGridStyle();
   const { columns, trackWidth } = useResolvedGridColumns(gridRef, gridStyle);
-  // Few columns or a wide window can stretch a card past `hqdefault` even on a 1× screen.
-  const highResThumbnails = trackWidth > 0 ? thumbnailNeedsHighRes(trackWidth) : undefined;
+  const thumbnailWidth = useWidestWidth(trackWidth) || undefined;
   const gridClass = "flow-grid gap-y-8 pb-8";
 
   const shown = rows && columns > 0 ? videos.slice(0, rows * columns) : videos;
   const insertAfterIndex = insertAfterCard(Boolean(insertNode), columns, shown.length);
+  const defaultKeys = useMemo(() => uniqueVideoKeys(shown), [shown]);
 
   if (loading) {
     return (
@@ -106,7 +107,7 @@ function VideoGridComponent({
       style={gridStyle}
     >
       {shown.map((video, index) => {
-        const key = getVideoKey ? getVideoKey(video, index) : `${video.id}-${index}`;
+        const key = getVideoKey ? getVideoKey(video, index) : defaultKeys[index]!;
         return (
         <Fragment key={key}>
           {/*
@@ -131,7 +132,7 @@ function VideoGridComponent({
               hideChannelAvatar={hideChannelAvatar}
               reason={getReason?.(video)}
               reasonLine={getReasonLine?.(video)}
-              highResThumbnail={highResThumbnails}
+              thumbnailWidth={thumbnailWidth}
             />
           </div>
           {insertAfterIndex === index ? (

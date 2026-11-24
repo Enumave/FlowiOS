@@ -13,9 +13,11 @@ LINUX
 - On NVIDIA with WebKitGTK 2.52 or later, Flow no longer moves by itself to drawing without the GPU, which crashes or leaves the window blank on some systems. Installs that climbed there come back on the next launch. Safe and Start with safe graphics still use it when you choose them.
 - Fixed sound running on for about a second after the first pause and then staying out of step with the picture (#660). It came from the equalizer and Volume boost on videos: WebKitGTK reads their audio about a second early, and never frees a video that used them. On Linux they are now off for videos and Shorts and show as not available. The equalizer still works for music.
 - Flow now raises its open-file limit at start, from the usual 1024 to what the system allows (524288 on most). On NVIDIA's 580 driver the part of Flow that draws the page leaks open files as it redraws, a driver bug that WebKitGTK works around after 2.52, and at 1024 Flow froze and reloaded with "Too many open files" within minutes (#660). The leak itself stays until the driver or WebKitGTK is updated.
+- On NVIDIA's 580 driver, Flow now has the page painted by the processor while the GPU still puts the picture together. On a reporter's computer that stopped the leak of open files: the count stayed near 130 where it used to reach 1024 after a few window resizes, and video was no less smooth (#660). Start Flow with WEBKIT_SKIA_ENABLE_CPU_RENDERING=0 to turn it off.
+- The Linux help page now says to run flatpak update after an NVIDIA driver update, so the driver inside the Flatpak matches the system's.
 - Starting Flow with your own WebKitGTK renderer variables now really uses them. After a start that failed, Flow used to add its own setting next to yours, which kept shared memory on, and it remembered a crashed test as a failed start. Such a start is now left alone and not remembered, and Settings > About says so.
 - Flow on Linux asks for fewer redraws: the playing bars and live dots hold still, pages and the side menu switch without a fade or slide, and the video has square corners. Ambient mode stays off on the slower graphics modes.
-- On Linux, a card now changes at once when the pointer moves onto it, with no fade. The fade made WebKitGTK rebuild the whole card as separate layers and draw about a dozen extra frames each time the pointer moved onto or off a card, also while a feed scrolled under it. In a test of 24 hovers that was 669 frames with the fades and 85 without (#660).
+- On Linux, a card now changes at once when the pointer moves onto it, with no fade. The fade made WebKitGTK rebuild the whole card as separate layers and draw about a dozen extra frames each time the pointer moved onto or off a card, also while a feed scrolled under it. In a test of 24 hovers that was 669 frames with the fades and 85 without (#660). Cards in a shelf no longer lift, and pictures on playlist, channel and artist cards no longer grow, which made a card shift by a few pixels under the pointer.
 - Seeking inside the loaded part of a video, and fast quality switches, no longer make WebKitGTK restart its decoder, which could stutter.
 - The video no longer goes black for a moment when you seek or change the speed (#696). Flow keeps the last picture on screen, zoomed as it was, until the new one is ready.
 - The Device rows in Settings > About, such as Graphics and Video decoders, can be selected and copied.
@@ -30,6 +32,17 @@ SUBSCRIPTIONS AND CHANNELS
 - While a first check of your channels runs, videos already listed are no longer redrawn with every batch.
 - Channel pictures on cards, in the side menu and in lists are loaded at the size they are shown, not at 512 pixels each.
 - Cards look up their DeArrow title and channel picture only once they come near the screen, and no longer ask the backend for an image they never show.
+- A post that shares a playlist now shows the playlist as a card you can open, as on Flow for Android. Such posts used to show only their text.
+
+CARDS
+- Upload dates on cards, such as "3 days ago", now follow the app's language instead of the computer's, and "Streamed" and "Premiered" can be translated.
+- The views and date line on a card now wraps only after the dot, so it no longer ends a line on "3 days" or "1.2M".
+- Hiding a video in search grids, on a channel, in Explore or in a shelf no longer reloads every card after it.
+- Video thumbnails are now loaded at the size the card draws them. A related video or a list row on a Retina or HiDPI screen loads a 320 or 480 pixel picture instead of the 1280 pixel one, and grids, shelves and search rows pick the smallest size that stays sharp.
+- Thumbnails load as WebP where YouTube has a copy, which was 29 to 56% smaller on the videos we measured, and as JPEG otherwise. A size a video doesn't have is skipped for the rest of the session instead of being asked for again each time its card appears.
+- Fixed a playlist or mix whose first video is an old upload showing a broken cover or YouTube's grey placeholder. The cover now steps down to a size the video has.
+- Playlist and mix cards have a new stack: the two sheets behind the cover are now the theme's own surface colours, tinted with the cover's colour once it loads, as on Flow for Android. They used to be two blurred copies of the cover under a black shade, which looked dark in the light theme. A playlist without a cover now shows the stack too.
+- The number of videos on a playlist card, and the word Playlist when there is no count, now follow the app's language.
 
 PLAYER
 - The player, its controls and its menus no longer redraw several times a second while a video plays. Only the parts that show the time follow it.
@@ -49,12 +62,14 @@ PLAYER
 - Swipe sideways with two fingers over a video to move back or forward through it, as in QuickTime Player, and turn the wheel over the seek bar to move by the seek step. Both follow the Trackpad gestures switch in Settings > Keyboard.
 - Zoom into a video with a trackpad pinch or Ctrl (Cmd on macOS) and the wheel, then drag or scroll with two fingers to move around it (#700). Z zooms in, Shift+Z zooms out, X goes back to the whole picture, and W, A, S and D move a zoomed video. Zoom goes from 1x to 6x, as on Android, and stops for a moment where the picture fills the screen.
 - A short read-out shows the zoom level, and the right-click menu has Zoom in, Zoom out and Reset zoom. Copy frame and Save frame keep only the zoomed part, at the video's own resolution. Captions keep their size, and each new video starts at 1x.
-- Settings > Player > Wheel over the video picks what the mouse wheel or a two-finger scroll does with the pointer on the video: scroll the page as before, change the volume, or zoom.
+- Settings > Player > Wheel over the video picks what the mouse wheel or a two-finger scroll does with the pointer on the video: scroll the page as before, change the volume, or zoom. When it zooms, Ctrl (Cmd on macOS) and the wheel change the volume instead (#700).
 - Space and Enter on a button you reached with Tab now press that button instead of pausing the video, and the arrow keys on a focused slider or seek bar no longer also seek or change the volume. A button clicked with the mouse still leaves Space to the player, and the same now holds in Shorts and the music player.
 - The buffering circle waits a fifth of a second before it shows, so a short refill after a seek or speed change no longer flashes it.
 
 MUSIC
 - Fixed the full music player sliding under the title bar on Windows and Linux and leaving a coloured strip along the bottom of the window (#693). It now opens just below the title bar and fills the rest of the window.
+- Album, song and artist cards on music shelves, and song rows, now load their artwork at the size they are drawn instead of at 1080 pixels. A song whose artwork is its video's thumbnail uses the 320 pixel picture in a row.
+- Pictures in channel posts load at the size of the post, where they always asked for 2048 pixels.
 
 KEYBOARD AND GESTURES
 - The keyboard shortcuts list (press ? or open Settings > Keyboard) now shows every key in Flow, including Shorts, tabs and windows, Back and Forward, and search. On macOS it shows keys the way the Mac menus do, such as ⇧⌘N.

@@ -8,7 +8,8 @@ import {
   loadAlbumSongs,
   useCollectionDownloadState,
 } from '../../lib/useCollectionDownloads';
-import { upgradeAvatarUrl, upgradeMusicImageUrl } from '../../lib/thumbnails';
+import { avatarSize, upgradeAvatarUrl, upgradeMusicImageUrl } from '../../lib/thumbnails';
+import { imageSizeStep } from '../../lib/thumbnailTiers';
 import { extractDominantColorFromImage, useDominantColor } from '../../lib/useDominantColor';
 import { ColorWash, COLOR_WASH_HOST } from '../ui/ColorWash';
 import { useHoverWashColor } from '../../lib/useHoverWashColor';
@@ -21,7 +22,7 @@ import { useSongMenuActions } from './useSongMenuActions';
 import { useDownloadStore } from '../../store/useDownloadStore';
 import { useImageFallback } from '../../lib/useImageFallback';
 import { useProxiedImageUrl } from '../../lib/useProxiedImageUrl';
-import { useMusicCardWidth } from '../../lib/useMusicCardWidth';
+import { useMusicCardMaxPx, useMusicCardWidth } from '../../lib/useMusicCardWidth';
 import { youtubeMusicAlbumUrl } from '../../lib/youtubeUrl';
 import { shareLink } from '../../lib/clipboard';
 import { ExplicitBadge } from './ExplicitBadge';
@@ -32,6 +33,7 @@ import { MusicCardMenu, type MusicMenuAction, useMusicContextMenu } from './Musi
 import { isLocalMediaId } from '../../lib/localMediaId';
 import { joinIsolated } from '../../lib/direction';
 import { CARD_FOCUS_ATTR } from '../../lib/cardNavigation';
+import { hoverMotion } from '../../lib/platform';
 
 type BaseProps = {
   className?: string;
@@ -196,6 +198,7 @@ function Artwork({
   iconSize = 'w-6 h-6',
   onLoad,
   imageRef,
+  drawnPx,
 }: {
   src?: string | null;
   alt: string;
@@ -204,8 +207,12 @@ function Artwork({
   iconSize?: string;
   onLoad?: (img: HTMLImageElement) => void;
   imageRef?: React.Ref<HTMLImageElement>;
+  /** The widest the artwork is drawn, in CSS px; left out, as for a card filling a grid cell, it loads at full size. */
+  drawnPx?: number;
 }) {
-  const upgradedSrc = rounded.includes('full') ? upgradeAvatarUrl(src) : upgradeMusicImageUrl(src);
+  const upgradedSrc = rounded.includes('full')
+    ? upgradeAvatarUrl(src, drawnPx ? avatarSize(drawnPx) : undefined)
+    : upgradeMusicImageUrl(src, drawnPx ? imageSizeStep(drawnPx) : undefined);
   const imageSrc = useProxiedImageUrl(upgradedSrc);
   const { src: displaySrc, onError } = useImageFallback([imageSrc]);
   if (!displaySrc) {
@@ -277,6 +284,7 @@ function SquareCard({
   const washSrc = useProxiedImageUrl(upgradeMusicImageUrl(thumbnail, 320));
   const wash = useHoverWashColor(washSrc);
   const cardWidth = useMusicCardWidth();
+  const cardMaxPx = useMusicCardMaxPx();
   const menuActions: MusicMenuAction[] = isTrack
     ? songActions
     : isAlbum
@@ -363,6 +371,7 @@ function SquareCard({
           rounded="rounded-xl"
           className="h-full w-full ring-1 ring-chrome-neutral-800/50"
           iconSize="w-10 h-10"
+          drawnPx={fill ? undefined : cardMaxPx}
         />
         {thumbnailOverlay}
         {isTrack ? (
@@ -526,8 +535,9 @@ function CircleCard({
           src={thumbnail}
           alt={title}
           rounded="rounded-full"
-          className="h-full w-full ring-1 ring-chrome-neutral-800/50 transition-transform duration-200 ease-out group-hover:scale-[1.02]"
+          className={`h-full w-full ring-1 ring-chrome-neutral-800/50 ${hoverMotion("transition-transform duration-200 ease-out group-hover:scale-[1.02]")}`}
           iconSize="w-10 h-10"
+          drawnPx={fill ? undefined : 160}
         />
       </div>
       <span dir="auto" className="line-clamp-2 text-center font-medium text-chrome-neutral-100">{title}</span>
@@ -625,6 +635,7 @@ function ListRow({
           rounded="rounded-md"
           className="h-full w-full"
           iconSize="w-5 h-5"
+          drawnPx={48}
           imageRef={artworkRef}
           onLoad={(img) => {
             if (isHighlighted) resolveColor(img);
