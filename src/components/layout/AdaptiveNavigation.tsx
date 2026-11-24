@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useLayoutEffect, useRef, useState, type ReactNode } from "react";
 import { Link, useLocation } from "react-router-dom";
-import { Menu, MoreHorizontal, PanelLeftClose, PanelLeftOpen } from "lucide-react";
+import { Menu, MoreHorizontal } from "lucide-react";
 import { SidebarNavIcon, type SidebarNavIconName } from "../ui/SidebarNavIcon";
 import { ShortsAIcon, ShortsIcon } from "../ui/ShortsIcon";
 import { AnchoredPortalMenu, type MenuAnchor } from "../ui/AnchoredPortalMenu";
@@ -35,6 +35,15 @@ export type NavTab = {
 };
 
 const ICON = "h-6 w-6 shrink-0";
+
+/** Material's "menu open" glyph, the rail toggle's expanded state on Android. */
+function MenuOpenIcon({ className }: { className?: string }) {
+  return (
+    <svg viewBox="0 0 24 24" fill="currentColor" aria-hidden="true" className={className}>
+      <path d="M3 18h13v-2H3v2zm0-5h10v-2H3v2zm0-7v2h13V6H3zm18 9.59L17.42 12 21 8.41 19.59 7l-5 5 5 5L21 15.59z" />
+    </svg>
+  );
+}
 
 function pair(name: SidebarNavIconName) {
   return {
@@ -107,14 +116,14 @@ export function useNavTabs(): NavTab[] {
     {
       id: "subscriptions",
       to: "/subscriptions",
-      label: getString("sidebar_subscriptions"),
+      label: "Subs",
       ...pair("subscriptions"),
       owns: (path) => startsWithAny(path, ["/subscriptions", "/channel"]),
     },
     {
       id: "library",
       to: "/library",
-      label: getString("sidebar_you"),
+      label: "Library",
       ...pair("you"),
       owns: (path) => startsWithAny(path, LIBRARY_PATHS),
     },
@@ -258,8 +267,8 @@ export function NavigationBar() {
 }
 
 const RAIL_EXPANDED_KEY = "flow_rail_expanded";
-const RAIL_HEADER_PX = 44;
-const RAIL_FOOTER_PX = 44;
+const RAIL_HEADER_PX = 48;
+const RAIL_FOOTER_PX = 48;
 const RAIL_PADDING_PX = 24;
 
 function readRailExpanded(): boolean {
@@ -275,7 +284,7 @@ function readRailExpanded(): boolean {
  * 96-wide column of icons over labels; on large windows its header opens it to labels beside the
  * icons. When the window is too short for every tab the last slot becomes "More".
  */
-export function NavigationRail({ onOpenDrawer }: { onOpenDrawer: () => void }) {
+export function NavigationRail(_props: { onOpenDrawer?: () => void }) {
   const location = useLocation();
   const tabs = useNavTabs();
   const expandable = useRailExpandable();
@@ -321,21 +330,22 @@ export function NavigationRail({ onOpenDrawer }: { onOpenDrawer: () => void }) {
         aria-label={getString("sidebar_menu")}
         data-flow-nav="rail"
         data-expanded={expanded}
-        className="flex h-full flex-col bg-background px-3 py-3"
+        className="flex h-full flex-col bg-surface-container px-5 py-3"
       >
-        <div className={`flex h-11 items-center ${expanded ? "justify-start" : "justify-center"}`}>
+        <div className="flex h-12 items-center justify-start ps-1">
           {expandable && (
             <IconButton
+              size="lg"
               aria-label={toggleLabel}
               title={toggleLabel}
               aria-expanded={expanded}
               onClick={() => setOpenPref((value) => !value)}
             >
-              {expanded ? <PanelLeftClose className="rtl:-scale-x-100" /> : <PanelLeftOpen className="rtl:-scale-x-100" />}
+              {expanded ? <MenuOpenIcon className="rtl:-scale-x-100" /> : <Menu />}
             </IconButton>
           )}
         </div>
-        <div className="flex flex-1 flex-col items-stretch justify-center gap-1">
+        <div className={`flex flex-1 flex-col items-stretch justify-center ${expanded ? "gap-0.5" : "gap-1.5"}`}>
           {shown.map((tab) => {
             const active = tab === selected;
             return (
@@ -346,7 +356,7 @@ export function NavigationRail({ onOpenDrawer }: { onOpenDrawer: () => void }) {
                 onClick={tab.onReselect}
                 className={
                   expanded
-                    ? `flex h-14 items-center gap-3 rounded-full px-4 text-sm ${active ? PILL_ACTIVE : PILL_IDLE}`
+                    ? `flex h-14 items-center gap-2 self-start rounded-full px-4 text-sm ${active ? PILL_ACTIVE : PILL_IDLE}`
                     : "flex h-16 flex-col items-center justify-center gap-1"
                 }
               >
@@ -375,7 +385,7 @@ export function NavigationRail({ onOpenDrawer }: { onOpenDrawer: () => void }) {
                 aria-haspopup="menu"
                 aria-expanded={menu.anchor !== null}
                 onClick={(event) => menu.open(event.currentTarget, "beside")}
-                className={expanded ? `flex h-14 items-center gap-3 rounded-full px-4 text-sm ${PILL_IDLE}` : "flex h-16 flex-col items-center justify-center gap-1"}
+                className={expanded ? `flex h-14 items-center gap-2 self-start rounded-full px-4 text-sm ${PILL_IDLE}` : "flex h-16 flex-col items-center justify-center gap-1"}
               >
                 {expanded ? (
                   <>
@@ -395,12 +405,8 @@ export function NavigationRail({ onOpenDrawer }: { onOpenDrawer: () => void }) {
             </>
           )}
         </div>
-        {/* Sync, Extensions, Support and the rest of the library live in the drawer. */}
-        <div className={`flex h-11 items-center ${expanded ? "justify-start" : "justify-center"}`}>
-          <IconButton aria-label={getString("sidebar_menu")} title={getString("sidebar_menu")} onClick={onOpenDrawer}>
-            <Menu />
-          </IconButton>
-        </div>
+        {/* Android's rail has no footer; this keeps the items centred on the full height, as there. */}
+        <div className="h-12" aria-hidden="true" />
       </nav>
     </div>
   );
