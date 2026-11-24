@@ -81,6 +81,9 @@ describe("adaptive navigation", () => {
     expect(host.querySelector("a[aria-current='page']")?.getAttribute("href")).toBe("/subscriptions");
     // 1024 wide is expanded, not large: no expand toggle.
     expect(host.querySelector("[aria-expanded]")).toBeNull();
+    __setWindowSizeForTests(1194, 834);
+    show("/subscriptions", createElement(NavigationRail, { onOpenDrawer: () => {} }));
+    expect(host.querySelector("button[aria-expanded='false']")).not.toBeNull();
     __setWindowSizeForTests(1366, 1024);
     show("/subscriptions", createElement(NavigationRail, { onOpenDrawer: () => {} }));
     expect(host.querySelector("button[aria-expanded='false']")).not.toBeNull();
