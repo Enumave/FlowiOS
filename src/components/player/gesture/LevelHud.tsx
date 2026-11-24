@@ -1,12 +1,16 @@
-import { useCallback, useEffect, useRef, useState } from "react";
+import { useEffect, useImperativeHandle, useRef, type Ref } from "react";
 import { Sun, Volume1, Volume2, VolumeX } from "lucide-react";
 import type { LevelPreview } from "./touchGestures";
 
 /**
  * The brightness / volume read-out of Flow for Android's circular style (CircularLevelHud): a ring
  * that fills clockwise from the top around a dark disc with the icon, and the percentage under it,
- * in the middle of the picture. Sizes are Android's dp read as CSS pixels. It fades and scales in
- * from 0.86 and back out, and keeps the last level on screen while it does.
+ * in the middle of the picture. Sizes are Android's dp read as CSS pixels.
+ *
+ * It is driven imperatively (`ref.current.set(level)`) rather than through React state. A swipe
+ * moves it on every pointer move, and going through state would re-render the whole gesture overlay
+ * each time; writing three attributes straight into the DOM keeps the read-out as quick as the
+ * finger. Nothing here is animated per frame (no transition on the ring), so it never lags behind.
  */
 const RING = 104;
 const STROKE = 8;
@@ -14,61 +18,87 @@ const DISC = 56;
 const ICON = 28;
 const RADIUS = (RING - STROKE) / 2;
 const CIRCUMFERENCE = 2 * Math.PI * RADIUS;
-const FADE_MS = 200;
+const FADE_MS = 150;
 
-type Level = NonNullable<LevelPreview>;
+type IconKey = "sun" | "high" | "low" | "mute";
 
-function iconFor(level: Level) {
-  if (level.kind === "brightness") return Sun;
-  if (level.value > 0.6) return Volume2;
-  if (level.value > 0.1) return Volume1;
-  return VolumeX;
+export type LevelHudHandle = {
+  /** Shows or updates the read-out with the level; null fades it out. */
+  set: (level: LevelPreview) => void;
+};
+
+function iconKeyFor(level: NonNullable<LevelPreview>): IconKey {
+  if (level.kind === "brightness") return "sun";
+  if (level.value > 0.6) return "high";
+  if (level.value > 0.1) return "low";
+  return "mute";
 }
 
-export function LevelHud({ preview }: { preview: LevelPreview }) {
-  const active = preview !== null;
-  const lastLevel = useRef<Level | null>(null);
-  if (preview) lastLevel.current = preview;
+export function LevelHud({ ref }: { ref?: Ref<LevelHudHandle> }) {
+  const root = useRef<HTMLDivElement>(null);
+  const arc = useRef<SVGCircleElement>(null);
+  const label = useRef<HTMLSpanElement>(null);
+  const icons = useRef<Record<IconKey, HTMLSpanElement | null>>({ sun: null, high: null, low: null, mute: null });
+  const state = useRef<{ icon: IconKey | null; shown: boolean; hideTimer: number | undefined }>({
+    icon: null,
+    shown: false,
+    hideTimer: undefined,
+  });
 
-  // Stays mounted for the fade-out after the preview goes.
-  const [mounted, setMounted] = useState(false);
-  useEffect(() => {
-    if (active) {
-      setMounted(true);
-      return;
-    }
-    const timer = window.setTimeout(() => setMounted(false), FADE_MS);
-    return () => window.clearTimeout(timer);
-  }, [active]);
+  useImperativeHandle(
+    ref,
+    () => ({
+      set(level) {
+        const element = root.current;
+        if (!element) return;
+        const current = state.current;
+        window.clearTimeout(current.hideTimer);
 
-  // A stable ref callback, so the entrance plays once when the HUD appears and not on every move.
-  const playEntrance = useCallback((element: HTMLDivElement | null) => {
-    element?.animate?.(
-      [
-        { opacity: 0, transform: "scale(0.86)" },
-        { opacity: 1, transform: "scale(1)" },
-      ],
-      { duration: 160, easing: "ease-out" },
-    );
-  }, []);
+        if (!level) {
+          current.shown = false;
+          element.style.opacity = "0";
+          current.hideTimer = window.setTimeout(() => {
+            if (!current.shown) element.style.visibility = "hidden";
+          }, FADE_MS);
+          return;
+        }
 
-  const level = preview ?? lastLevel.current;
-  if ((!mounted && !active) || !level) return null;
+        if (!current.shown) {
+          current.shown = true;
+          element.style.visibility = "visible";
+          element.style.opacity = "1";
+        }
+        const progress = Math.min(1, Math.max(0, level.value));
+        const ring = arc.current;
+        if (ring) {
+          ring.setAttribute("stroke-dashoffset", String(CIRCUMFERENCE * (1 - progress)));
+          // A round cap would draw a dot at zero.
+          ring.style.opacity = progress > 0 ? "1" : "0";
+        }
+        if (label.current) label.current.textContent = `${Math.round(progress * 100)}%`;
+        const key = iconKeyFor(level);
+        if (key !== current.icon) {
+          current.icon = key;
+          for (const [name, holder] of Object.entries(icons.current)) {
+            if (holder) holder.style.display = name === key ? "grid" : "none";
+          }
+        }
+      },
+    }),
+    [],
+  );
 
-  const Icon = iconFor(level);
-  const progress = Math.min(1, Math.max(0, level.value));
-  const percent = Math.round(progress * 100);
+  useEffect(() => () => window.clearTimeout(state.current.hideTimer), []);
+
+  const holder = (key: IconKey) => (node: HTMLSpanElement | null) => {
+    icons.current[key] = node;
+  };
 
   return (
     <div className="pointer-events-none absolute inset-0 z-30 flex items-center justify-center">
       <div
-        ref={playEntrance}
-        className="flex w-[148px] flex-col items-center px-[18px] py-4"
-        style={{
-          opacity: active ? 1 : 0,
-          transform: active ? "scale(1)" : "scale(0.92)",
-          transition: `opacity ${FADE_MS}ms ease, transform ${FADE_MS}ms ease`,
-        }}
+        ref={root}
+        className="invisible flex w-[148px] flex-col items-center px-[18px] py-4 opacity-0 transition-opacity duration-150"
       >
         <div className="relative grid place-items-center" style={{ width: RING, height: RING }}>
           <svg
@@ -87,6 +117,7 @@ export function LevelHud({ preview }: { preview: LevelPreview }) {
               style={{ stroke: "rgba(0, 0, 0, 0.4)" }}
             />
             <circle
+              ref={arc}
               cx={RING / 2}
               cy={RING / 2}
               r={RADIUS}
@@ -94,25 +125,32 @@ export function LevelHud({ preview }: { preview: LevelPreview }) {
               strokeWidth={STROKE}
               strokeLinecap="round"
               strokeDasharray={CIRCUMFERENCE}
-              strokeDashoffset={CIRCUMFERENCE * (1 - progress)}
-              style={{
-                stroke: "var(--color-primary)",
-                // A round cap would draw a dot at zero.
-                opacity: progress > 0 ? 1 : 0,
-                transition: "stroke-dashoffset 90ms linear",
-              }}
+              strokeDashoffset={CIRCUMFERENCE}
+              style={{ stroke: "var(--color-primary)", opacity: 0 }}
             />
           </svg>
           <div
             className="grid place-items-center rounded-full"
             style={{ width: DISC, height: DISC, background: "rgba(0, 0, 0, 0.54)" }}
           >
-            <Icon size={ICON} className="text-chrome-white" />
+            <span ref={holder("sun")} className="hidden text-chrome-white">
+              <Sun size={ICON} />
+            </span>
+            <span ref={holder("high")} className="hidden text-chrome-white">
+              <Volume2 size={ICON} />
+            </span>
+            <span ref={holder("low")} className="hidden text-chrome-white">
+              <Volume1 size={ICON} />
+            </span>
+            <span ref={holder("mute")} className="hidden text-chrome-white">
+              <VolumeX size={ICON} />
+            </span>
           </div>
         </div>
-        <span className="mt-2.5 text-sm font-bold tabular-nums text-chrome-white [text-shadow:0_1px_3px_rgba(0,0,0,0.55)]">
-          {percent}%
-        </span>
+        <span
+          ref={label}
+          className="mt-2.5 text-sm font-bold tabular-nums text-chrome-white [text-shadow:0_1px_3px_rgba(0,0,0,0.55)]"
+        />
       </div>
     </div>
   );
