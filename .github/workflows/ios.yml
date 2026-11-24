@@ -45,6 +45,9 @@ jobs:
       - name: Hide the home bar during fullscreen video
         run: python3 ios-immersive.py
 
+      - name: Stop taps acting as hover on video cards
+        run: python3 ios-home-cards.py
+
       - name: Inject logo.png into Tauri icons folder
         run: |
           mkdir -p src-tauri/icons || true
