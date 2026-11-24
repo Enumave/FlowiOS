@@ -1185,29 +1185,30 @@ replace(
 # 18. Fullscreen swipes as on Android: a vertical drag on the left half changes the brightness, on
 #     the right half the volume, and only the middle third pulls the player out of fullscreen. The
 #     gesture logic is in touchGestures.ts, the native side in src-tauri/src/ios_chrome.rs and the
-#     read-out (Android's circular style, in the middle of the picture) in LevelHud.tsx; this puts
-#     the read-out into the overlay.
+#     read-out (Android's circular style, in the middle of the picture) in LevelHud.tsx. The read-out
+#     is moved through a ref and not through state, so a swipe does not re-render this overlay on
+#     every pointer move.
 replace(
     OVERLAY,
     'import { useTouchPlayerGestures, type ScrubPreview } from "./touchGestures";\n',
-    'import { useTouchPlayerGestures, type LevelPreview, type ScrubPreview } from "./touchGestures";\n'
-    'import { LevelHud } from "./LevelHud";\n',
+    'import { useTouchPlayerGestures, type ScrubPreview } from "./touchGestures";\n'
+    'import { LevelHud, type LevelHudHandle } from "./LevelHud";\n',
 )
 replace(
     OVERLAY,
     "  const [scrubPreview, setScrubPreview] = useState<ScrubPreview>(null);\n",
     "  const [scrubPreview, setScrubPreview] = useState<ScrubPreview>(null);\n"
-    "  const [levelPreview, setLevelPreview] = useState<LevelPreview>(null);\n",
+    "  const levelHudRef = useRef<LevelHudHandle>(null);\n",
 )
 replace(
     OVERLAY,
     "    onScrub: setScrubPreview,\n",
-    "    onScrub: setScrubPreview,\n    onLevel: setLevelPreview,\n",
+    "    onScrub: setScrubPreview,\n    onLevel: (level) => levelHudRef.current?.set(level),\n",
 )
 replace(
     OVERLAY,
     "      {seekFeedback && <SeekFeedback feedback={seekFeedback} compact={isCompact} />}\n",
-    "      <LevelHud preview={levelPreview} />\n"
+    "      <LevelHud ref={levelHudRef} />\n"
     "\n"
     "      {seekFeedback && <SeekFeedback feedback={seekFeedback} compact={isCompact} />}\n",
 )
