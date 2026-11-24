@@ -116,6 +116,7 @@ export function useTouchPlayerGestures(options: Options) {
     let levelValue: number | null = null;
     let levelPendingDelta = 0;
     let levelLastY = 0;
+    let levelHeight = 1;
     let levelSent = -1;
     let levelSentAt = 0;
     let levelSendTimer: number | undefined;
@@ -239,8 +240,7 @@ export function useTouchPlayerGestures(options: Options) {
     };
 
     const moveLevel = (y: number) => {
-      const height = Math.max(1, layer.getBoundingClientRect().height);
-      const delta = (-(y - levelLastY) / height) * LEVEL_SENSITIVITY;
+      const delta = (-(y - levelLastY) / levelHeight) * LEVEL_SENSITIVITY;
       levelLastY = y;
       if (levelValue === null) {
         levelPendingDelta += delta;
@@ -258,6 +258,8 @@ export function useTouchPlayerGestures(options: Options) {
       levelValue = null;
       levelPendingDelta = 0;
       levelLastY = y;
+      // Measured once: reading layout on every move would force a layout pass each time.
+      levelHeight = Math.max(1, layer.getBoundingClientRect().height);
       levelSent = -1;
       levelSentAt = 0;
       const warm = prefetched?.kind === kind ? prefetched.levels : null;
