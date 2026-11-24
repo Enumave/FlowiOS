@@ -1064,7 +1064,7 @@
     correct themselves.
   */
   contain-intrinsic-size: auto calc(
-    var(--flow-grid-track-w, calc(100vw / var(--flow-grid-columns, 4))) * 0.5625 + 4.5rem
+    var(--flow-grid-track-w, calc(100vw / var(--flow-grid-columns, 4))) * 0.5625 + var(--flow-grid-meta, 4.5rem)
   );
 }
 
