@@ -74,9 +74,13 @@ export function usesNavigationRail(sc: WindowSizeClass): boolean {
   return (isExpandedWidth(sc) && isMediumHeight(sc)) || (sc.isLandscape && !isMediumHeight(sc));
 }
 
-/** Whether the rail may open to show labels beside the icons. Only large windows have room. */
+/**
+ * Whether the rail may open to show labels beside the icons. Android allows it from the large
+ * breakpoint (1200); 1100 lets an 11-inch iPad on its side, 1194 wide, have it too.
+ */
+export const RAIL_EXPANDABLE_MIN_WIDTH = 1100;
 export function railIsExpandable(sc: WindowSizeClass): boolean {
-  return isLargeWidth(sc);
+  return isLargeWidth(sc) || (isExpandedWidth(sc) && sc.widthPx >= RAIL_EXPANDABLE_MIN_WIDTH);
 }
 
 /** The tabs that fit, and the ones that go behind "More". The last visible slot becomes "More". */
