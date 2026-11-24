@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { useLocation, useNavigate } from "react-router-dom";
 import { ArrowLeft, PanelLeftClose, PanelLeftOpen, Search, Settings } from "lucide-react";
 import { usePlayerStore } from "../../store/usePlayerStore";
@@ -14,6 +14,7 @@ import { ProfileMenuButton } from "../profiles/ProfileMenuButton";
 import { SETTINGS } from "../../lib/settings/schema";
 import { getString } from "../../lib/i18n/index";
 import { FOCUS_SEARCH_EVENT } from "../../lib/windowEvents";
+import { toggleDeepFlow } from "../../lib/deepFlow";
 import { useUsesNavigationRail } from "../../lib/adaptive/useWindowSizeClass";
 
 /*
@@ -31,6 +32,9 @@ export function AdaptiveTopbar() {
   const seeThrough = usePlayerStore((s) => s.isAmbientSpreadShown && s.isPlayerBelowTopbar) && isWatchPage;
   const showAppLogo = useAppSettingsStore((s) => s.values[SETTINGS.SHOW_APP_LOGO_ICON] !== "false");
   const [searching, setSearching] = useState(false);
+  // As on Android: a tap on the logo goes Home, a long press toggles Deep Flow.
+  const logoPress = useRef<{ timer: number; fired: boolean }>({ timer: 0, fired: false });
+  const endLogoPress = () => window.clearTimeout(logoPress.current.timer);
 
   // Running a search, or any other navigation, puts the bar back.
   useEffect(() => setSearching(false), [location.pathname, location.search]);
@@ -79,8 +83,25 @@ export function AdaptiveTopbar() {
           </IconButton>
         )}
         {showAppLogo && (
-          <div className="cursor-pointer" onClick={() => navigate("/")}>
-            <Logo size={36} showText={true} />
+          <div
+            className="flex cursor-pointer select-none items-center gap-2"
+            onPointerDown={() => {
+              logoPress.current.fired = false;
+              logoPress.current.timer = window.setTimeout(() => {
+                logoPress.current.fired = true;
+                void toggleDeepFlow();
+              }, 500);
+            }}
+            onPointerUp={endLogoPress}
+            onPointerLeave={endLogoPress}
+            onPointerCancel={endLogoPress}
+            onContextMenu={(event) => event.preventDefault()}
+            onClick={() => {
+              if (!logoPress.current.fired) navigate("/");
+            }}
+          >
+            <Logo size={32} showText={false} />
+            <span className="text-[22px] font-extrabold uppercase leading-7 tracking-[1px] text-chrome-neutral-100">Flow</span>
           </div>
         )}
       </div>
