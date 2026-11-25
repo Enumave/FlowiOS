@@ -45,6 +45,9 @@ jobs:
       - name: Hide the home bar during fullscreen video
         run: python3 ios-immersive.py
 
+      - name: Stop pages scrolling sideways
+        run: python3 ios-no-sideways-scroll.py
+
       - name: Stop taps acting as hover on video cards
         run: python3 ios-home-cards.py
 
