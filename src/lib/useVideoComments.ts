@@ -1,154 +1,75 @@
-import { useCallback, useEffect, useState } from "react";
-import { getComments, getPostComments } from "./api/youtube";
-import type { Comment, CommentSort } from "../types/video";
+import { useCallback, useEffect, useMemo } from "react";
+import { commentSourceKey, useCommentsStore, type CommentFlag, type CommentSource } from "../store/useCommentsStore";
 
 interface UseVideoCommentsOptions {
+  /** The video is a Short, whose comments come from its reel's own panel. */
+  short?: boolean;
   postId?: string | null;
   postCommentParams?: string | null;
 }
 
+const NO_FLAGS: Record<string, boolean> = {};
+
+/**
+ * A video's or a post's comment list, shared by everything that shows it: the watch column and the
+ * fullscreen panel read one list, with one request per page and the same open threads.
+ */
 export function useVideoComments(videoId: string | undefined, options: UseVideoCommentsOptions = {}) {
   const postId = options.postId?.trim() || null;
   const postCommentParams = options.postCommentParams?.trim() || null;
-  const sourceId = postId ?? videoId;
-  const sourceKey = postId ? `post:${postId}:${postCommentParams ?? ""}` : `video:${videoId ?? ""}`;
-  const [comments, setComments] = useState<Comment[]>([]);
-  const [loading, setLoading] = useState(false);
-  const [nextPageToken, setNextPageToken] = useState<string | null>(null);
-  const [countText, setCountText] = useState<string | null>(null);
-  const [totalCount, setTotalCount] = useState<number | null>(null);
-  const [disabled, setDisabled] = useState(false);
-  const [sortOptions, setSortOptions] = useState<CommentSort[]>([]);
-  // The sort chosen for this source; any other source starts on YouTube's default first page.
-  const [chosenSort, setChosenSort] = useState<{ key: string; token: string } | null>(null);
-  const sortToken = chosenSort?.key === sourceKey ? chosenSort.token : null;
-  const [loadingMore, setLoadingMore] = useState(false);
-  const [replies, setReplies] = useState<Record<string, Comment[]>>({});
-  const [repliesLoading, setRepliesLoading] = useState<Record<string, boolean>>({});
-  const [repliesNextToken, setRepliesNextToken] = useState<Record<string, string | null>>({});
-  const [expanded, setExpanded] = useState<Record<string, boolean>>({});
-
-  const fetchComments = useCallback(
-    (pageToken?: string | null) => {
-      if (postId) return getPostComments(postId, postCommentParams, pageToken);
-      return getComments(videoId || "", pageToken);
-    },
-    [postId, postCommentParams, videoId],
-  );
+  const short = Boolean(options.short);
+  const source = useMemo<CommentSource | null>(() => {
+    if (postId) return { kind: "post", postId, params: postCommentParams };
+    if (!videoId) return null;
+    return short ? { kind: "short", videoId } : { kind: "video", videoId };
+  }, [postId, postCommentParams, short, videoId]);
+  const key = source ? commentSourceKey(source) : "";
+  const entry = useCommentsStore((state) => state.entries[key]);
+  const store = useCommentsStore.getState;
 
   useEffect(() => {
-    setSortOptions([]);
-    setTotalCount(null);
-    setDisabled(false);
-  }, [sourceKey]);
+    if (!source) return;
+    store().open(source);
+    return () => store().close(commentSourceKey(source));
+  }, [source, store]);
 
-  useEffect(() => {
-    setComments([]);
-    setNextPageToken(null);
-    if (!sortToken) setCountText(null);
-    setReplies({});
-    setRepliesLoading({});
-    setRepliesNextToken({});
-    setExpanded({});
-    if (!sourceId) return;
-
-    let cancelled = false;
-    setLoading(true);
-    fetchComments(sortToken)
-      .then((res) => {
-        if (cancelled) return;
-        setComments(res.comments || []);
-        setNextPageToken(res.nextPageToken || null);
-        if (res.commentCountText) setCountText(res.commentCountText);
-        if (res.totalCount != null) setTotalCount(res.totalCount);
-        if (res.sortOptions?.length) setSortOptions(res.sortOptions);
-        setDisabled(Boolean(res.commentsDisabled));
-      })
-      .catch((err) => {
-        if (cancelled) return;
-        console.warn("Failed to load comments", err);
-        setComments([]);
-        setNextPageToken(null);
-        setCountText(null);
-      })
-      .finally(() => {
-        if (!cancelled) setLoading(false);
-      });
-
-    return () => {
-      cancelled = true;
-    };
-  }, [fetchComments, sourceId, sourceKey, sortToken]);
-
-  /** Reloads the list in the order `token` names (Top or Newest). */
-  const selectSort = useCallback(
-    (token: string) => {
-      setSortOptions((options) => options.map((option) => ({ ...option, selected: option.token === token })));
-      setChosenSort({ key: sourceKey, token });
-    },
-    [sourceKey],
-  );
-
-  const loadMore = useCallback(async () => {
-    if (!sourceId || !nextPageToken || loadingMore) return;
-    setLoadingMore(true);
-    try {
-      const res = await fetchComments(nextPageToken);
-      setComments((prev) => [...prev, ...(res.comments || [])]);
-      setNextPageToken(res.nextPageToken || null);
-      if (res.commentCountText) setCountText(res.commentCountText);
-    } catch (err) {
-      console.error("Failed to load more comments", err);
-    } finally {
-      setLoadingMore(false);
-    }
-  }, [fetchComments, sourceId, nextPageToken, loadingMore]);
-
-  const loadReplies = useCallback(
-    async (commentId: string, replyToken: string) => {
-      if (!sourceId || repliesLoading[commentId]) return;
-      setRepliesLoading((prev) => ({ ...prev, [commentId]: true }));
-      try {
-        const res = await fetchComments(replyToken);
-        setReplies((prev) => ({ ...prev, [commentId]: [...(prev[commentId] || []), ...(res.comments || [])] }));
-        setRepliesNextToken((prev) => ({ ...prev, [commentId]: res.nextPageToken || null }));
-      } catch (err) {
-        console.error(`Failed to load replies for comment ${commentId}`, err);
-      } finally {
-        setRepliesLoading((prev) => ({ ...prev, [commentId]: false }));
-      }
-    },
-    [fetchComments, sourceId, repliesLoading],
-  );
-
+  const selectSort = useCallback((token: string, toOldest = false) => store().selectSort(key, token, toOldest), [key, store]);
+  const loadMore = useCallback(() => store().loadMore(key), [key, store]);
   const toggleReplies = useCallback(
-    async (commentId: string, replyToken: string | null | undefined) => {
-      if (expanded[commentId]) {
-        setExpanded((prev) => ({ ...prev, [commentId]: false }));
-        return;
-      }
-      setExpanded((prev) => ({ ...prev, [commentId]: true }));
-      if (!replies[commentId] && replyToken) await loadReplies(commentId, replyToken);
-    },
-    [expanded, replies, loadReplies],
+    (commentId: string, token: string | null | undefined) => store().toggleReplies(key, commentId, token),
+    [key, store],
+  );
+  const loadReplies = useCallback(
+    (commentId: string, token: string) => store().loadReplies(key, commentId, token),
+    [key, store],
+  );
+  const toggleFlag = useCallback(
+    (flag: CommentFlag, commentId: string) => store().toggleFlag(key, flag, commentId),
+    [key, store],
   );
 
   return {
-    comments,
-    loading,
-    countText,
-    totalCount,
-    disabled,
-    sortOptions,
+    comments: entry?.comments ?? [],
+    loading: entry ? entry.loading : Boolean(source),
+    countText: entry?.countText ?? null,
+    totalCount: entry?.totalCount ?? null,
+    disabled: entry?.disabled ?? false,
+    sortOptions: entry?.sortOptions ?? [],
+    oldest: entry?.oldest ?? false,
+    oldestCapped: entry?.oldestCapped ?? false,
+    nextPageToken: entry?.nextPageToken ?? null,
+    loadingMore: entry?.loadingMore ?? false,
+    loadMoreFailed: entry?.loadMoreFailed ?? false,
+    replies: entry?.replies ?? {},
+    repliesLoading: entry?.repliesLoading ?? {},
+    repliesNextToken: entry?.repliesNextToken ?? {},
+    expanded: entry?.flags.open ?? NO_FLAGS,
+    unfolded: entry?.flags.unfolded ?? NO_FLAGS,
+    textExpanded: entry?.flags.textExpanded ?? NO_FLAGS,
     selectSort,
-    nextPageToken,
-    loadingMore,
-    replies,
-    repliesLoading,
-    repliesNextToken,
-    expanded,
     loadMore,
     toggleReplies,
     loadReplies,
+    toggleFlag,
   };
 }

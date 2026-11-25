@@ -12,6 +12,7 @@ import type {
   ChannelTabResponse,
   ChannelItem,
   PlaylistDetailsResponse,
+  Comment,
   CommentsResponse,
   LiveChatResponse,
   VideoSummary,
@@ -419,6 +420,18 @@ export async function getComments(
     videoId,
     pageToken,
   });
+}
+
+/** A Short's comments, through its reel's comment panel when it has one. */
+export async function getShortComments(videoId: string, pageToken?: string | null): Promise<CommentsResponse> {
+  if (!(await isTauriEnv())) return getComments(videoId, pageToken);
+  return invokeBackend<CommentsResponse>("get_short_comments", { videoId, pageToken });
+}
+
+/** YouTube's Timed list for a video, from the token of its comment section's Newest order. */
+export async function getTimedComments(videoId: string, sectionToken: string): Promise<Comment[]> {
+  if (!(await isTauriEnv())) return [];
+  return invokeBackend<Comment[]>("get_timed_comments", { videoId, sectionToken });
 }
 
 export async function getPostComments(

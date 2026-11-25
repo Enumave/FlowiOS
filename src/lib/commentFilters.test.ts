@@ -1,8 +1,8 @@
 import { describe, expect, it } from "vitest";
 import {
   commentSortFor,
-  firstTimestampSeconds,
-  oldestCommentsFirst,
+  timedPositionSeconds,
+  oldestFirst,
   timedAnchorIndex,
   timedCommentOrders,
   timedCommentsInOrder,
@@ -32,8 +32,12 @@ describe("comment filters", () => {
   });
 
   it("reads the first timestamp by place in the text", () => {
-    expect(firstTimestampSeconds(comment("a", {}, [stamp(9, 50), stamp(2, 10)]))).toBe(10);
-    expect(firstTimestampSeconds(comment("a"))).toBeNull();
+    expect(timedPositionSeconds(comment("a", {}, [stamp(9, 50), stamp(2, 10)]))).toBe(10);
+    expect(timedPositionSeconds(comment("a"))).toBeNull();
+  });
+
+  it("prefers the time YouTube's Timed list gives a comment", () => {
+    expect(timedPositionSeconds(comment("a", { timedAtMs: 95_400 }, [stamp(0, 10)]))).toBe(95);
   });
 
   it("orders timed comments latest first, most liked first at the same spot, without past-the-end times", () => {
@@ -58,13 +62,13 @@ describe("comment filters", () => {
     expect(timedAnchorIndex([], 5)).toBe(-1);
   });
 
-  it("puts the oldest first and keeps pinned on top", () => {
+  it("turns the newest-first list around and keeps pinned on top", () => {
     const list = [
-      comment("new", { publishedText: "2 hours ago" }),
       comment("pin", { publishedText: "1 minute ago", isPinned: true }),
+      comment("new", { publishedText: "vor 2 Stunden" }),
+      comment("mid", { publishedText: "il y a 4 semaines" }),
       comment("old", { publishedText: "3 years ago (edited)" }),
-      comment("mid", { publishedText: "4 weeks ago" }),
     ];
-    expect(oldestCommentsFirst(list).map((c) => c.id)).toEqual(["pin", "old", "mid", "new"]);
+    expect(oldestFirst(list).map((c) => c.id)).toEqual(["pin", "old", "mid", "new"]);
   });
 });

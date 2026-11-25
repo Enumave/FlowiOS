@@ -43,6 +43,10 @@ CARDS
 - Fixed a playlist or mix whose first video is an old upload showing a broken cover or YouTube's grey placeholder. The cover now steps down to a size the video has.
 - Playlist and mix cards have a new stack: the two sheets behind the cover are now the theme's own surface colours, tinted with the cover's colour once it loads, as on Flow for Android. They used to be two blurred copies of the cover under a black shade, which looked dark in the light theme. A playlist without a cover now shows the stack too.
 - The number of videos on a playlist card, and the word Playlist when there is no count, now follow the app's language.
+- Post cards in a shelf, on a channel's Home and in search, are now all the same size. The text is shortened and a picture, video or playlist shows as a small square at the side. Clicking a card opens the whole post with its comments.
+- Shelves no longer show how many items they hold next to their title.
+- The Continue Watching shelf on Home has a View all button that opens History.
+- See all, Show all and View all on every shelf are now a rounded button, as on the Library page. More like this in a card's menu has a thumbs up icon instead of sparkles.
 
 PLAYER
 - The player, its controls and its menus no longer redraw several times a second while a video plays. Only the parts that show the time follow it.
@@ -65,6 +69,20 @@ PLAYER
 - Settings > Player > Wheel over the video picks what the mouse wheel or a two-finger scroll does with the pointer on the video: scroll the page as before, change the volume, or zoom. When it zooms, Ctrl (Cmd on macOS) and the wheel change the volume instead (#700).
 - Space and Enter on a button you reached with Tab now press that button instead of pausing the video, and the arrow keys on a focused slider or seek bar no longer also seek or change the volume. A button clicked with the mouse still leaves Space to the player, and the same now holds in Shorts and the music player.
 - The buffering circle waits a fifth of a second before it shows, so a short refill after a seek or speed change no longer flashes it.
+
+COMMENTS
+- Oldest now starts from the oldest comment. YouTube has no oldest-first order, so Flow reads the Newest order to its end, up to about 500 comments on big videos, and turns it around. Past that it says how far it reached.
+- Oldest used to sort only the comments already loaded and read their age in English, so in other languages the order was wrong.
+- Community post comments now switch between Top, Newest and Oldest, and a comment YouTube sends twice shows once.
+- The watch page and the fullscreen comments panel now share one list, so comments load once and threads you opened stay open after the panel closes.
+- Replies are now drawn as the conversation they are. YouTube sends them as one flat list, so Flow reads the @name a reply starts with and puts it under the earlier reply it answers, with lines from each avatar, as Flow for Android does.
+- Threads indent up to three steps; replies deeper than two levels fold behind "N replies" until you open them. Right-to-left languages get the same lines mirrored.
+- The creator's heart on a comment now shows the creator's avatar with a red heart on it, and a thread the creator answered shows their avatar next to its reply count.
+- Bold, italic and struck-through text in comments keeps its style. Long comments stop at four lines with Read more, and keep their links and custom emoji while shortened.
+- GIFs attached to comments and replies now show under their text. GIFs in comments, in Settings > Content, turns them off and syncs with Flow for Android.
+- Timed now opens with YouTube's own Timed list in one request, about a third of a second in a test, where it used to read up to 16 pages. Each comment sits at the time YouTube gives it. Videos without such a list still read pages as before.
+- Shorts comments now load from the Short's own comment panel instead of its full watch page, as Flow for Android does. A Short without that panel still loads through the watch page.
+- More comments load as you scroll to the end of the list, with Retry if a page fails. Timed keeps its Load more button.
 
 MUSIC
 - Fixed the full music player sliding under the title bar on Windows and Linux and leaving a coloured strip along the bottom of the window (#693). It now opens just below the title bar and fills the rest of the window.
@@ -96,6 +114,10 @@ SYNC
 - Flow no longer opens the keychain at launch on a device that is in no sync group.
 - A computer removed from a sync group on the local network now finds out the next time it reaches a desktop still in the group, and stops syncing, instead of showing Linked forever (#662). That desktop gives it only the list of devices.
 - New installs name themselves after the computer, such as Flow Desktop (MY-PC - Windows), so two installs in one group are easy to tell apart. Development builds add Dev.
+- When a sync server or WebDAV folder can't be reached, Flow now says why: nothing answered, the port refused the connection, the name wasn't found, the server stopped answering, or the address isn't a web server (Flow for Android #2233).
+- A WebDAV folder address that the server redirects, doesn't have, or doesn't allow writing to now gets its own message, and each failed request is written to the log.
+- When two linked devices share a name, the device list and the remove confirmation add the start of each device id, and each device offered for removal shows when it last synced, so removing one no longer risks removing its twin (#2184).
+- A device removed on the local network now finds out straight away when it is reachable, instead of staying Linked until it next reaches a member. The devices left in the group get the removal at once too.
 
 DESKTOP
 - Flow starts with a smaller first script: Settings, Sync, Recap, your Persona, Extensions, Diagnostics, Import, Support and the welcome screens now load when they are first opened.
@@ -116,4 +138,5 @@ FIXES
 - Fixed a possible freeze after hours of use when Flow was started by a launcher that never reads its output.
 
 UNDER THE HOOD
+- The check for a video's paid promotion label now asks YouTube for only the two fields it reads, as it was meant to. A missing separator in the request address made YouTube send the whole player answer, about 238 KB, where 37 bytes do.
 - A first component, the video card, is built with the React Compiler, which only compiles components that opt in.

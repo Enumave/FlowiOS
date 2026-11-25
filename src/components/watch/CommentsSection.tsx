@@ -2,8 +2,10 @@ import { useEffect, useMemo, useRef, useState } from "react";
 import { Loader2, X } from "lucide-react";
 import { Button } from "../ui/Button";
 import { Chip } from "../ui/Chip";
+import { LoadMoreRow } from "../ui/LoadMoreRow";
 import { ToggleSwitch } from "../ui/ToggleSwitch";
 import { CommentItem } from "./CommentItem";
+import { RepliesToggle, ReplyThread, ThreadStem, threadContentStart, threadCreatorAvatar } from "./CommentThread";
 import { useVideoComments } from "../../lib/useVideoComments";
 import { useTimedComments } from "../../lib/useTimedComments";
 import { useTimedFollow } from "../../lib/useTimedFollow";
@@ -11,14 +13,13 @@ import { useBoolPref } from "../../lib/usePreference";
 import {
   COMMENT_FILTERS,
   commentSortFor,
-  oldestCommentsFirst,
+  oldestFirst,
   timedCommentsInOrder,
   type CommentFilter,
 } from "../../lib/commentFilters";
 import { SETTINGS } from "../../lib/settings/schema";
 import { usePlayerStore } from "../../store/usePlayerStore";
-import { getString } from "../../lib/i18n/index";
-import type { CommentSort } from "../../types/video";
+import { getPlural, getString } from "../../lib/i18n/index";
 import type { CommentsSectionProps } from "./types";
 
 const FILTER_LABELS = {
@@ -28,24 +29,22 @@ const FILTER_LABELS = {
   timed: "comments_sort_timed",
 } as const satisfies Record<CommentFilter, string>;
 
-// YouTube names the orders in English; ours are named by their place in its list.
-const sortLabel = (option: CommentSort, index: number) =>
-  index === 0 ? getString("comments_sort_top") : index === 1 ? getString("comments_sort_newest") : option.title;
-
 export function CommentsSection({
   videoId,
   hideHeader = false,
+  short = false,
   postId,
   postCommentParams,
   fill = false,
   onClose,
 }: CommentsSectionProps) {
-  const thread = useVideoComments(videoId, { postId, postCommentParams });
+  const thread = useVideoComments(videoId, { short, postId, postCommentParams });
   const [filter, setFilter] = useState<CommentFilter>("top");
-  useEffect(() => setFilter("top"), [videoId]);
-  // Community posts have no playback to follow and keep YouTube's own orders.
-  const filtersShown = !postId && thread.sortOptions.length >= 2;
-  const isTimed = filtersShown && filter === "timed";
+  useEffect(() => setFilter("top"), [videoId, postId]);
+  const filtersShown = thread.sortOptions.length >= 2;
+  // Community posts have no playback for Timed to follow.
+  const filters = postId ? COMMENT_FILTERS.filter((option) => option !== "timed") : COMMENT_FILTERS;
+  const isTimed = filtersShown && !postId && filter === "timed";
 
   const timed = useTimedComments(videoId, thread.sortOptions, isTimed);
   const duration = usePlayerStore((s) => s.duration);
@@ -54,7 +53,7 @@ export function CommentsSection({
 
   const comments = useMemo(() => {
     if (isTimed) return timedCommentsInOrder(timed.comments, duration);
-    return filtersShown && filter === "oldest" ? oldestCommentsFirst(thread.comments) : thread.comments;
+    return filtersShown && filter === "oldest" ? oldestFirst(thread.comments) : thread.comments;
   }, [duration, filter, filtersShown, isTimed, thread.comments, timed.comments]);
   const { anchorId, pauseForReading, pauseForReplies } = useTimedFollow(listRef, comments, isTimed && follow);
 
@@ -62,13 +61,18 @@ export function CommentsSection({
     setFilter(next);
     if (next === "timed") return;
     const order = commentSortFor(thread.sortOptions, next);
-    if (order && !order.selected) thread.selectSort(order.token);
+    if (!order) return;
+    if (next === "oldest") thread.selectSort(order.token, true);
+    else if (!order.selected || thread.oldest) thread.selectSort(order.token);
   };
+  const oldestNote =
+    filtersShown && filter === "oldest" && thread.oldestCapped && !thread.loading
+      ? getPlural("comments_oldest_capped", thread.comments.length)
+      : null;
 
   const loading = isTimed ? timed.loading && comments.length === 0 : thread.loading;
   const hasMore = isTimed ? timed.hasMore : Boolean(thread.nextPageToken);
   const loadingMore = isTimed ? timed.loading : thread.loadingMore;
-  const loadMore = isTimed ? timed.loadMore : thread.loadMore;
   const emptyText = isTimed ? getString("comments_no_timed") : getString("watch_no_comments");
   // The Timed list scrolls by itself, so following it never moves the page or the player.
   const listClass = fill ? "min-h-0 flex-1 overflow-y-auto pe-1" : isTimed ? "max-h-[70vh] overflow-y-auto pe-1" : "";
@@ -92,31 +96,19 @@ export function CommentsSection({
               <X size={18} />
             </button>
           )}
-          {filtersShown ? (
+          {filtersShown && (
             <div className="flex flex-wrap gap-2">
-              {COMMENT_FILTERS.map((option) => (
+              {filters.map((option) => (
                 <Chip key={option} active={filter === option} onClick={() => chooseFilter(option)}>
                   {getString(FILTER_LABELS[option])}
                 </Chip>
               ))}
             </div>
-          ) : (
-            thread.sortOptions.length > 1 && (
-              <div className="flex gap-2">
-                {thread.sortOptions.map((option, index) => (
-                  <Chip
-                    key={option.token}
-                    active={option.selected}
-                    onClick={() => !option.selected && thread.selectSort(option.token)}
-                  >
-                    {sortLabel(option, index)}
-                  </Chip>
-                ))}
-              </div>
-            )
           )}
         </div>
       )}
+
+      {oldestNote && <p className="-mt-2 text-xs text-chrome-neutral-400">{oldestNote}</p>}
 
       {isTimed && (
         <div className="flex items-center justify-between gap-3">
@@ -147,68 +139,85 @@ export function CommentsSection({
                   c.id === anchorId ? "bg-surface-container-high" : ""
                 }`}
               >
-                <CommentItem comment={c} />
-                <div className="ms-14">
-                  {(c.continuationToken || (c.replyCount != null && c.replyCount > 0)) && (
-                    <button
-                      onClick={() => {
-                        if (!thread.expanded[c.id]) pauseForReplies();
-                        void thread.toggleReplies(c.id, c.continuationToken);
-                      }}
-                      className="mt-2 flex items-center gap-1 border-none bg-transparent p-0 text-xs font-semibold text-primary hover:underline"
-                    >
-                      {thread.expanded[c.id]
-                        ? getString("watch_hide_replies")
-                        : getString("watch_show_replies", c.replyCount ?? "")}
-                    </button>
-                  )}
-
-                  {thread.expanded[c.id] && (
-                    <div className="mt-4 space-y-4 border-s-2 border-chrome-neutral-800 ps-4">
-                      {thread.replies[c.id]?.map((reply, rIdx) => (
-                        <CommentItem key={reply.id || `reply-${rIdx}`} comment={reply} reply />
-                      ))}
-
-                      {thread.repliesLoading[c.id] && (
-                        <div className="flex items-center gap-2 py-1 text-xs text-chrome-neutral-400">
-                          <Loader2 className="animate-spin text-chrome-neutral-400" size={14} />
-                          <span>{getString("watch_loading_replies")}</span>
-                        </div>
-                      )}
-
-                      {!thread.repliesLoading[c.id] && thread.repliesNextToken[c.id] && (
-                        <button
-                          onClick={() => thread.loadReplies(c.id, thread.repliesNextToken[c.id]!)}
-                          className="mt-2 block border-none bg-transparent p-0 text-[11px] font-bold text-primary hover:underline"
-                        >
-                          {getString("watch_show_more_replies")}
-                        </button>
-                      )}
-                    </div>
-                  )}
+                <div className="relative">
+                  {thread.expanded[c.id] && Boolean(thread.replies[c.id]?.length) && <ThreadStem />}
+                  <CommentItem
+                    comment={c}
+                    textExpanded={Boolean(thread.textExpanded[c.id])}
+                    onExpandText={() => thread.toggleFlag("textExpanded", c.id)}
+                  >
+                    {/* YouTube's Timed list gives no way to load a comment's replies, so nothing to open. */}
+                    {(c.replyCount ?? 0) > 0 && (c.continuationToken || thread.replies[c.id]?.length) && (
+                      <RepliesToggle
+                        count={c.replyCount ?? 0}
+                        open={Boolean(thread.expanded[c.id])}
+                        loading={Boolean(thread.repliesLoading[c.id]) && !thread.replies[c.id]?.length}
+                        creatorAvatar={c.creatorReplyThumbnail}
+                        creatorName={c.creatorReplyName}
+                        onClick={() => {
+                          if (!thread.expanded[c.id]) pauseForReplies();
+                          void thread.toggleReplies(c.id, c.continuationToken);
+                        }}
+                      />
+                    )}
+                  </CommentItem>
                 </div>
+
+                {thread.expanded[c.id] &&
+                  (thread.replies[c.id]?.length ? (
+                    <ReplyThread
+                      replies={thread.replies[c.id]!}
+                      hasMore={Boolean(thread.repliesNextToken[c.id])}
+                      loadingMore={Boolean(thread.repliesLoading[c.id])}
+                      isUnfolded={(id) => Boolean(thread.unfolded[id])}
+                      onUnfold={(id) => thread.toggleFlag("unfolded", id)}
+                      onLoadMore={() => {
+                        const token = thread.repliesNextToken[c.id];
+                        if (token) void thread.loadReplies(c.id, token);
+                      }}
+                      creatorAvatar={threadCreatorAvatar(c, thread.replies[c.id])}
+                      isTextExpanded={(id) => Boolean(thread.textExpanded[id])}
+                      onExpandText={(id) => thread.toggleFlag("textExpanded", id)}
+                    />
+                  ) : (
+                    thread.repliesLoading[c.id] && (
+                      <div
+                        className="flex items-center gap-2 py-2 text-xs text-chrome-neutral-400"
+                        style={{ paddingInlineStart: threadContentStart(1) }}
+                      >
+                        <Loader2 className="animate-spin text-chrome-neutral-400" size={14} />
+                        <span>{getString("watch_loading_replies")}</span>
+                      </div>
+                    )
+                  ))}
               </div>
             ))}
           </div>
 
-          {(hasMore || (isTimed && loadingMore)) && (
-            <div className="flex justify-center pt-4">
-              <Button
-                variant="outline"
-                onClick={loadMore}
-                disabled={loadingMore}
-                className="px-6 font-semibold"
-              >
-                {loadingMore ? (
-                  <>
-                    <Loader2 className="animate-spin text-chrome-neutral-400" size={16} />
-                    <span>{getString("watch_loading_more_comments")}</span>
-                  </>
-                ) : (
-                  getString("watch_load_more_comments")
-                )}
-              </Button>
-            </div>
+          {isTimed ? (
+            (hasMore || loadingMore) && (
+              <div className="flex justify-center pt-4">
+                <Button variant="outline" onClick={timed.loadMore} disabled={loadingMore} className="px-6 font-semibold">
+                  {loadingMore ? (
+                    <>
+                      <Loader2 className="animate-spin text-chrome-neutral-400" size={16} />
+                      <span>{getString("watch_loading_more_comments")}</span>
+                    </>
+                  ) : (
+                    getString("watch_load_more_comments")
+                  )}
+                </Button>
+              </div>
+            )
+          ) : (
+            <LoadMoreRow
+              hasMore={hasMore}
+              loading={loadingMore}
+              failed={thread.loadMoreFailed}
+              onLoadMore={() => void thread.loadMore()}
+              loadingText={getString("watch_loading_more_comments")}
+              failedText={getString("comments_load_more_failed")}
+            />
           )}
         </div>
       )}

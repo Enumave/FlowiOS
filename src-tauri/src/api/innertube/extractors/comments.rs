@@ -12,8 +12,15 @@ use crate::api::innertube::json::text::text_of;
 use crate::api::innertube::json::thumbnail::{
     normalize_youtube_image_url, thumbnail_url_from_array,
 };
+use crate::api::innertube::transport::request::Host;
 use crate::errors::{AppError, AppResult};
-use crate::models::comment::{Comment, CommentSort, CommentsResponse};
+use crate::models::comment::{Comment, CommentImage, CommentSort, CommentsResponse};
+
+/// The Timed list's opening line, which is no comment.
+const TIMED_WELCOME_ID: &str = "timed_comments_welcome_sync_id";
+/// Only the entities: the rest of the Timed answer is server-drawn rows, 600 KB of
+/// them, that take seconds to arrive.
+const TIMED_FIELDS: &str = "&fields=frameworkUpdates.entityBatchUpdate.mutations";
 
 /// What a thread renders with when its comment is pinned to the top.
 const PINNED_PRIORITY: &str = "RENDERING_PRIORITY_PINNED_COMMENT";
@@ -74,16 +81,34 @@ fn find_comment_count_text(val: &Value) -> Option<String> {
     None
 }
 
-/// The comments page's header: the sort options and the exact count.
+/// The comments page's header: the sort options and the exact count. A
+/// community post's page can carry it inside its sections rather than in the
+/// continuation items, so the rest of the answer is searched after those.
 fn comments_header(val: &Value) -> Option<&Value> {
     continuation_item_lists(val)
         .into_iter()
         .flatten()
         .find_map(|item| item.get("commentsHeaderRenderer"))
+        .or_else(|| find_comments_header(val))
+}
+
+fn find_comments_header(value: &Value) -> Option<&Value> {
+    match value {
+        Value::Object(map) => map
+            .get("commentsHeaderRenderer")
+            .or_else(|| map.values().find_map(find_comments_header)),
+        Value::Array(items) => items.iter().find_map(find_comments_header),
+        _ => None,
+    }
 }
 
 fn sort_options(header: &Value) -> Vec<CommentSort> {
-    header["sortMenu"]["sortFilterSubMenuRenderer"]["subMenuItems"]
+    sort_menu_options(&header["sortMenu"])
+}
+
+/// The entries of a menu that holds a `sortFilterSubMenuRenderer`.
+pub(super) fn sort_menu_options(menu: &Value) -> Vec<CommentSort> {
+    menu["sortFilterSubMenuRenderer"]["subMenuItems"]
         .as_array()
         .into_iter()
         .flatten()
@@ -371,6 +396,7 @@ fn collect_comments_from_value(
 /// A comment in the older `commentRenderer` shape.
 fn legacy_comment(renderer: &Value, replies_renderer: Option<&Value>) -> Option<Comment> {
     let id = renderer["commentId"].as_str().filter(|id| !id.is_empty())?;
+    let (creator_reply_thumbnail, creator_reply_name) = creator_reply(replies_renderer);
     Some(Comment {
         id: id.to_string(),
         author: text_of(&renderer["authorText"]).unwrap_or_else(|| "Anonymous".to_string()),
@@ -388,8 +414,37 @@ fn legacy_comment(renderer: &Value, replies_renderer: Option<&Value>) -> Option<
         continuation_token: comment_reply_token(replies_renderer),
         is_pinned: renderer.get("pinnedCommentBadge").is_some(),
         is_verified: renderer.get("authorCommentBadge").is_some(),
+        creator_reply_thumbnail,
+        creator_reply_name,
+        image: comment_image(&renderer["imageAttachmentViewModel"]),
         ..Default::default()
     })
+}
+
+/// The avatar and channel name on the replies button of a thread the creator
+/// answered.
+fn creator_reply(replies_renderer: Option<&Value>) -> (Option<String>, Option<String>) {
+    let Some(thumbnail) = replies_renderer.map(|renderer| &renderer["viewRepliesCreatorThumbnail"])
+    else {
+        return (None, None);
+    };
+    let Some(url) = thumbnail_url_from_array(&thumbnail["thumbnails"]) else {
+        return (None, None);
+    };
+    let name = thumbnail["accessibility"]["accessibilityData"]["label"]
+        .as_str()
+        .filter(|label| !label.trim().is_empty())
+        .map(ToOwned::to_owned);
+    (Some(url), name)
+}
+
+/// The GIF or picture `YouTube` shows under a comment's text, with its size.
+fn comment_image(attachment: &Value) -> Option<CommentImage> {
+    let view_model = &attachment["commentImageAttachmentViewModel"];
+    let url = thumbnail_url_from_array(&view_model["image"]["sources"])?;
+    let width = u32::try_from(view_model["width"].as_u64()?).ok()?;
+    let height = u32::try_from(view_model["height"].as_u64()?).ok()?;
+    (width > 0 && height > 0).then_some(CommentImage { url, width, height })
 }
 
 fn build_comment_mutation_map(value: &Value) -> HashMap<String, Value> {
@@ -476,6 +531,13 @@ fn build_comment_from_view_model(
     let pinned_text =
         text_of(&view_model["pinnedText"]).or_else(|| text_of(&properties["pinnedText"]));
     let flag = |key: &str| author[key].as_bool().unwrap_or(false);
+    let (creator_reply_thumbnail, creator_reply_name) = creator_reply(replies_renderer);
+    let image = view_model["commentSurfaceKey"]
+        .as_str()
+        .and_then(|key| mutation_payloads.get(key))
+        .and_then(|payload| {
+            comment_image(&payload["commentSurfaceEntityPayload"]["imageAttachmentViewModel"])
+        });
 
     Some(Comment {
         id,
@@ -494,8 +556,9 @@ fn build_comment_from_view_model(
             .map(ToOwned::to_owned),
         reply_count,
         continuation_token,
-        rich_text: rich_text(&properties["content"], own_video_id)
-            .filter(|rich| !rich.spans.is_empty() || !rich.emojis.is_empty()),
+        rich_text: rich_text(&properties["content"], own_video_id).filter(|rich| {
+            !rich.spans.is_empty() || !rich.emojis.is_empty() || !rich.styles.is_empty()
+        }),
         is_pinned: pinned || pinned_text.is_some(),
         pinned_text,
         is_hearted: toolbar_state.is_some_and(|state| state["heartState"] == HEARTED),
@@ -505,7 +568,54 @@ fn build_comment_from_view_model(
         is_verified: flag("isVerified"),
         is_creator: flag("isCreator"),
         is_artist: flag("isArtist"),
+        creator_heart_thumbnail: toolbar["creatorThumbnailUrl"]
+            .as_str()
+            .filter(|url| !url.trim().is_empty())
+            .map(normalize_youtube_image_url),
+        creator_reply_thumbnail,
+        creator_reply_name,
+        image,
+        timed_at_ms: None,
     })
+}
+
+/// `YouTube`'s Timed list, in playback order, each comment with the time
+/// `YouTube` shows it at. The order and the times come from the list's sync entity; the
+/// comments are ordinary comment entities, found by their id.
+fn parse_timed_comments(response: &Value, own_video_id: Option<&str>) -> Vec<Comment> {
+    let mutations = build_comment_mutation_map(response);
+    let key_by_id: HashMap<&str, &str> = mutations
+        .iter()
+        .filter_map(|(key, payload)| {
+            let id = payload["commentEntityPayload"]["properties"]["commentId"].as_str()?;
+            Some((id, key.as_str()))
+        })
+        .collect();
+    let entries = mutations
+        .values()
+        .find_map(|payload| payload.get("timedMarkersListSyncEntity"))
+        .and_then(|sync| sync["timedListData"]["sections"].as_array())
+        .into_iter()
+        .flatten()
+        .filter_map(|section| section["timedSyncDataList"].as_array())
+        .flatten();
+    let comments = entries
+        .filter_map(|entry| {
+            let id = entry["syncItemId"]
+                .as_str()
+                .filter(|id| *id != TIMED_WELCOME_ID)?;
+            let at_ms = entry["videoTimeMs"]
+                .as_str()
+                .and_then(|ms| ms.parse().ok())
+                .or_else(|| entry["videoTimeMs"].as_u64())?;
+            let view_model = serde_json::json!({ "commentKey": key_by_id.get(id)? });
+            let mut comment =
+                build_comment_from_view_model(&view_model, None, &mutations, own_video_id, false)?;
+            comment.timed_at_ms = Some(at_ms);
+            Some(comment)
+        })
+        .collect();
+    dedupe_comments(comments)
 }
 
 fn dedupe_comments(comments: Vec<Comment>) -> Vec<Comment> {
@@ -591,6 +701,34 @@ impl InnertubeClient {
         Ok(comments_res)
     }
 
+    /// `YouTube`'s Timed list for the comment section `section_token` opens (its
+    /// Newest order), in one IOS request. Only IOS serves it: ANDROID answers 400
+    /// and WEB has no Timed filter. IOS never gets a `BotGuard` token.
+    pub async fn get_timed_comments(
+        &self,
+        video_id: &str,
+        section_token: &str,
+    ) -> AppResult<Vec<Comment>> {
+        let mut payload = serde_json::json!({
+            "continuation": section_token,
+            "formData": { "commentsFilterFormData": { "commentsFilter": { "sortBy": "SORT_BY_TIMED" } } },
+        });
+        let response = self
+            .post_via(
+                &self.client,
+                Host::Www,
+                "next",
+                &clients::IOS,
+                &mut payload,
+                None,
+                Some(TIMED_FIELDS),
+            )
+            .await?;
+        let comments = parse_timed_comments(&response, Some(video_id.trim()));
+        debug!(video_id = %video_id.trim(), count = comments.len(), "[get_timed_comments] YouTube's Timed list");
+        Ok(comments)
+    }
+
     pub async fn get_post_comments(
         &self,
         post_id: &str,
@@ -624,7 +762,7 @@ impl InnertubeClient {
         let mut comments_res = parse_comments_json(&res, None);
 
         if page_token.is_none() && comments_res.comments.is_empty() {
-            let initial_count_text = comments_res.comment_count_text.clone();
+            let initial = comments_res.clone();
             let continuation_token =
                 find_initial_comments_token(&res).or_else(|| comments_res.next_page_token.clone());
 
@@ -637,7 +775,14 @@ impl InnertubeClient {
                     .await?;
                 comments_res = parse_comments_json(&next_res, None);
                 if comments_res.comment_count_text.is_none() {
-                    comments_res.comment_count_text = initial_count_text;
+                    comments_res.comment_count_text = initial.comment_count_text;
+                }
+                // The post's own page can hold the sort menu its first comments page leaves out.
+                if comments_res.sort_options.is_empty() {
+                    comments_res.sort_options = initial.sort_options;
+                }
+                if comments_res.total_count.is_none() {
+                    comments_res.total_count = initial.total_count;
                 }
             }
         }
@@ -648,7 +793,9 @@ impl InnertubeClient {
 
 #[cfg(test)]
 mod tests {
-    use super::{build_comment_from_view_model, parse_comments_json};
+    use super::{
+        build_comment_from_view_model, comment_image, parse_comments_json, parse_timed_comments,
+    };
     use std::collections::HashMap;
 
     fn view_model() -> serde_json::Value {
@@ -781,6 +928,111 @@ mod tests {
         assert_eq!(parsed.sort_options.len(), 2);
         assert_eq!(parsed.sort_options[1].token, "NEW");
         assert!(parsed.sort_options[0].selected);
+    }
+
+    #[test]
+    fn reads_the_creator_avatars_the_gif_and_style_only_text() {
+        let view_model = serde_json::json!({
+            "commentKey": "key-1", "toolbarStateKey": "toolbar-1", "commentSurfaceKey": "surface-1"
+        });
+        let mut mutations = payloads(serde_json::json!({
+            "properties": { "commentId": "c4", "content": {
+                "content": "loud", "styleRuns": [{ "startIndex": 0, "length": 4, "weightLabel": "FONT_WEIGHT_BOLD" }]
+            } },
+            "author": { "displayName": "@fan" },
+            "toolbar": { "creatorThumbnailUrl": "//yt3.ggpht.com/creator=s48-c-k-c0x00ffffff-no-rj" }
+        }));
+        mutations.insert(
+            "surface-1".to_string(),
+            serde_json::json!({ "commentSurfaceEntityPayload": { "imageAttachmentViewModel": {
+                "commentImageAttachmentViewModel": {
+                    "image": { "sources": [{ "url": "https://yt3.ggpht.com/gif", "width": 220, "height": 124 }] },
+                    "width": 220, "height": 124
+                }
+            } } }),
+        );
+        let replies = serde_json::json!({ "viewRepliesCreatorThumbnail": {
+            "thumbnails": [{ "url": "https://yt3.ggpht.com/creator=s88-c-k-c0x00ffffff-no-rj", "width": 88, "height": 88 }],
+            "accessibility": { "accessibilityData": { "label": "Ridgeline Audio" } }
+        } });
+        let comment =
+            build_comment_from_view_model(&view_model, Some(&replies), &mutations, None, false)
+                .expect("comment");
+        assert!(
+            comment
+                .creator_heart_thumbnail
+                .as_deref()
+                .is_some_and(|url| url.starts_with("https://yt3.ggpht.com/creator"))
+        );
+        assert!(comment.creator_reply_thumbnail.is_some());
+        assert_eq!(
+            comment.creator_reply_name.as_deref(),
+            Some("Ridgeline Audio")
+        );
+        let image = comment.image.expect("gif");
+        assert_eq!((image.width, image.height), (220, 124));
+        assert_eq!(
+            comment
+                .rich_text
+                .expect("styles keep the rich text")
+                .styles
+                .len(),
+            1
+        );
+    }
+
+    #[test]
+    fn the_timed_list_gives_comments_in_its_order_with_their_times() {
+        let entity = |id: &str, text: &str| {
+            serde_json::json!({ "commentEntityPayload": {
+                "properties": { "commentId": id, "content": { "content": text } },
+                "author": { "displayName": "@someone" }
+            } })
+        };
+        let response = serde_json::json!({ "frameworkUpdates": { "entityBatchUpdate": { "mutations": [
+            { "entityKey": "k-late", "payload": entity("late", "the drop") },
+            { "entityKey": "k-early", "payload": entity("early", "intro") },
+            { "entityKey": "list", "payload": { "timedMarkersListSyncEntity": { "timedListData": { "sections": [
+                { "timedSyncDataList": [
+                    { "syncItemId": "timed_comments_welcome_sync_id", "videoTimeMs": "0" },
+                    { "syncItemId": "early", "videoTimeMs": "12000" },
+                    { "syncItemId": "late", "videoTimeMs": "95000" },
+                    { "syncItemId": "missing", "videoTimeMs": "99000" }
+                ] }
+            ] } } } }
+        ] } } });
+        let comments = parse_timed_comments(&response, Some("own00000000"));
+        let order: Vec<(&str, Option<u64>)> = comments
+            .iter()
+            .map(|c| (c.id.as_str(), c.timed_at_ms))
+            .collect();
+        assert_eq!(order, [("early", Some(12_000)), ("late", Some(95_000))]);
+        assert!(comments.iter().all(|c| c.continuation_token.is_none()));
+    }
+
+    #[test]
+    fn a_gif_without_a_size_is_dropped() {
+        let attachment = serde_json::json!({ "commentImageAttachmentViewModel": {
+            "image": { "sources": [{ "url": "https://yt3.ggpht.com/gif" }] }, "width": 0, "height": 124
+        } });
+        assert!(comment_image(&attachment).is_none());
+    }
+
+    #[test]
+    fn a_post_page_gives_the_sort_options_from_inside_its_section() {
+        let response = serde_json::json!({ "contents": { "twoColumnBrowseResultsRenderer": { "tabs": [{
+            "tabRenderer": { "content": { "sectionListRenderer": { "contents": [{ "itemSectionRenderer": {
+                "header": { "commentsHeaderRenderer": {
+                    "sortMenu": { "sortFilterSubMenuRenderer": { "subMenuItems": [
+                        { "title": "Top", "selected": true, "serviceEndpoint": { "continuationCommand": { "token": "TOP" } } },
+                        { "title": "Newest", "selected": false, "serviceEndpoint": { "continuationCommand": { "token": "NEW" } } }
+                    ] } }
+                } }
+            } }] } } }
+        }] } } });
+        let parsed = parse_comments_json(&response, None);
+        assert_eq!(parsed.sort_options.len(), 2);
+        assert_eq!(parsed.sort_options[0].token, "TOP");
     }
 
     #[test]
