@@ -51,6 +51,9 @@ jobs:
       - name: Stop taps acting as hover on video cards
         run: python3 ios-home-cards.py
 
+      - name: Pin the video and tidy Watch page spacing
+        run: python3 ios-watch-layout.py
+
       - name: Inject logo.png into Tauri icons folder
         run: |
           mkdir -p src-tauri/icons || true
