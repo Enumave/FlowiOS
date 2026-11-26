@@ -1213,4 +1213,79 @@ replace(
     "      {seekFeedback && <SeekFeedback feedback={seekFeedback} compact={isCompact} />}\n",
 )
 
+# 19. Scrubbing with a finger, as on Android: touch anywhere on the bar and drag, and it just works.
+#     The desktop bar starts a drag from mouse events, which a touchscreen only sends after the finger
+#     has lifted, so a drag never started; it starts from the pointer events here instead. The bar is
+#     told not to let the browser take over the touch (touch-action: none), which would cancel the drag
+#     as soon as it drifted up or down. In fullscreen the bar is raised well clear of the bottom edge,
+#     where iPadOS looks for the home and multitasking swipes (ios_chrome.rs also makes that swipe
+#     need a second try while a video is fullscreen).
+replace(
+    PLAYER_FILE,
+    '            data-progress-track\n'
+    '            className="group/seekbar relative flex h-6 cursor-pointer items-center"\n',
+    '            data-progress-track\n'
+    '            data-scrubbing={isScrubbing ? "" : undefined}\n'
+    '            data-touch-fullscreen={IS_MOBILE_RUNTIME && isFullscreen ? "" : undefined}\n'
+    '            style={IS_MOBILE_RUNTIME ? { touchAction: "none" } : undefined}\n'
+    '            className="group/seekbar relative flex h-6 cursor-pointer items-center"\n',
+)
+replace(
+    PLAYER_FILE,
+    "            onMouseUp={() => setIsScrubbing(false)}\n",
+    "            onMouseUp={() => setIsScrubbing(false)}\n"
+    "            onPointerDown={(event) => {\n"
+    "              // A finger or a pen. The pointer is captured, so the drag keeps going wherever it\n"
+    "              // wanders; the document-level pointermove above does the seeking.\n"
+    '              if (!IS_MOBILE_RUNTIME || event.pointerType === "mouse") return;\n'
+    "              event.currentTarget.setPointerCapture(event.pointerId);\n"
+    "              setIsScrubbing(true);\n"
+    "              handlePointerSeek(event.clientX);\n"
+    "            }}\n",
+)
+# a touch the system takes over (an edge swipe, a call) ends the drag instead of leaving it stuck
+replace(
+    PLAYER_FILE,
+    '    document.addEventListener("pointerup", handlePointerUp);\n',
+    '    document.addEventListener("pointerup", handlePointerUp);\n'
+    '    document.addEventListener("pointercancel", handlePointerUp);\n',
+)
+replace(
+    PLAYER_FILE,
+    '      document.removeEventListener("pointerup", handlePointerUp);\n',
+    '      document.removeEventListener("pointerup", handlePointerUp);\n'
+    '      document.removeEventListener("pointercancel", handlePointerUp);\n',
+)
+# fullscreen: the controls sit higher, so the bar is nowhere near the bottom edge
+replace(PLAYER_FILE, '? "px-10 pb-7"', '? "px-10 pb-10"')
+with open("src/App.css", "a", encoding="utf-8", newline="\n") as css:
+    css.write(
+        "\n/* Touch seek bar: a bar and thumb a finger can hold, thicker still while held (Android's), and in\n"
+        "   fullscreen a tall touch area well above the bottom edge instead of one hugging it. */\n"
+        "@media (hover: none) {\n"
+        '  [data-progress-track] [class*="h-[5px]"] {\n'
+        "    height: 8px !important;\n"
+        "  }\n"
+        '  [data-progress-track][data-scrubbing] [class*="h-[5px]"] {\n'
+        "    height: 16px !important;\n"
+        "  }\n"
+        '  [data-progress-track] [class*="h-7 w-7"] {\n'
+        "    width: 3rem !important;\n"
+        "    height: 3rem !important;\n"
+        "  }\n"
+        '  [data-progress-track] [class*="h-3.5 w-3.5"] {\n'
+        "    width: 1.5rem !important;\n"
+        "    height: 1.5rem !important;\n"
+        "  }\n"
+        "  [data-progress-track][data-touch-fullscreen] {\n"
+        "    height: 3.5rem !important;\n"
+        "    margin-bottom: 0 !important;\n"
+        "  }\n"
+        '  [data-progress-track][data-touch-fullscreen] [class*="bottom-8"] {\n'
+        "    bottom: 3.25rem !important;\n"
+        "  }\n"
+        "}\n"
+    )
+print("patched src/App.css (touch seek bar)")
+
 print("ios-ui: done")
