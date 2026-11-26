@@ -38,6 +38,9 @@ jobs:
 
       - name: Settle the mini player into corners like Android
         run: python3 ios-mini-player.py
+
+      - name: Land the mini player in its corner when minimized
+        run: python3 ios-mini-player-size.py
       
       - name: Fade the Watch page when the player is dragged to the mini player
         run: python3 ios-sheet-fade.py
