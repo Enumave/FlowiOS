@@ -48,6 +48,23 @@ extern "C-unwind" fn prefers_home_indicator_auto_hidden(
     }
 }
 
+/// `UIRectEdgeBottom`: the edge whose system swipe (home, app switcher) should need a second try.
+const UI_RECT_EDGE_BOTTOM: usize = 1 << 2;
+
+/// While fullscreen video plays, a first swipe up from the bottom edge only brings the home
+/// indicator back and a second one goes home. Without this the seek bar, which sits near that edge,
+/// is easy to lose to an accidental home or multitasking swipe mid-drag.
+extern "C-unwind" fn preferred_screen_edges_deferring_system_gestures(
+    _controller: *mut AnyObject,
+    _selector: Sel,
+) -> usize {
+    if HIDE.load(Ordering::Relaxed) {
+        UI_RECT_EDGE_BOTTOM
+    } else {
+        0
+    }
+}
+
 /// The window's root view controller, or null before there is one. Main thread only.
 fn root_view_controller() -> *mut AnyObject {
     // SAFETY: UIKit calls on the main thread. A message to nil returns nil, so a missing
@@ -68,8 +85,9 @@ fn answer_from_hide(controller: &AnyObject) {
     if ANSWERING.swap(true, Ordering::AcqRel) {
         return;
     }
-    // SAFETY: replaces one method on the class of an object that exists. The new method has the
-    // `BOOL (id, SEL)` shape UIKit calls it with, and it only reads an atomic.
+    // SAFETY: replaces two methods on the class of an object that exists. The new methods have
+    // the `BOOL (id, SEL)` and `NSUInteger (id, SEL)` shapes UIKit calls them with, and they only
+    // read an atomic.
     unsafe {
         let _ = ffi::class_replaceMethod(
             std::ptr::from_ref::<AnyClass>(controller.class()).cast_mut().cast(),
@@ -79,6 +97,15 @@ fn answer_from_hide(controller: &AnyObject) {
                 objc2::runtime::Imp,
             >(prefers_home_indicator_auto_hidden),
             c"B@:".as_ptr(),
+        );
+        let _ = ffi::class_replaceMethod(
+            std::ptr::from_ref::<AnyClass>(controller.class()).cast_mut().cast(),
+            sel!(preferredScreenEdgesDeferringSystemGestures),
+            std::mem::transmute::<
+                extern "C-unwind" fn(*mut AnyObject, Sel) -> usize,
+                objc2::runtime::Imp,
+            >(preferred_screen_edges_deferring_system_gestures),
+            c"Q@:".as_ptr(),
         );
     }
 }
@@ -235,13 +262,14 @@ fn apply(hide: bool) {
     }
     // SAFETY: the pointer comes from UIKit on the main thread and is used only inside this call.
     let Some(controller) = (unsafe { root_view_controller().as_ref() }) else {
-        tracing::warn!("No root view controller to hide the home indicator on");
+        tracing::warn!("No root view controller to hide the system bars on");
         return;
     };
     answer_from_hide(controller);
     // SAFETY: a plain notification that the preference changed.
     unsafe {
         let _: () = msg_send![controller, setNeedsUpdateOfHomeIndicatorAutoHidden];
+        let _: () = msg_send![controller, setNeedsUpdateOfScreenEdgesDeferringSystemGestures];
     }
 }
 
