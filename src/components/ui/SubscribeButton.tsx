@@ -1,6 +1,6 @@
 import React, { useCallback, useLayoutEffect, useRef, useState } from "react";
 import { useNavigate } from "react-router-dom";
-import { BellOff, BellRing, Check, ChevronDown, Eye, EyeOff, FolderPlus, UserMinus } from "lucide-react";
+import { BellOff, BellRing, Check, ChevronDown, Eye, EyeOff, FolderPlus, Pin, PinOff, UserMinus } from "lucide-react";
 import { Button } from "./Button";
 import { AnchoredPortalMenu, type MenuAnchor } from "./AnchoredPortalMenu";
 import { useSubscriptionStore } from "../../store/useSubscriptionStore";
@@ -14,6 +14,7 @@ import { SETTINGS } from "../../lib/settings/schema";
 import { MOTION_EASE, motionMs } from "../../lib/motion";
 import { getString } from "../../lib/i18n/index";
 import { alignToEnd } from "../../lib/direction";
+import { useSubscriptionOrder } from "../../lib/useSubscriptionOrder";
 
 export interface SubscribeButtonProps {
   channelId: string;
@@ -58,6 +59,7 @@ export function SubscribeButton({
 }: SubscribeButtonProps) {
   const navigate = useNavigate();
   const active = useSubscriptionStore((state) => state.isSubscribed(channelId));
+  const { pins, togglePin } = useSubscriptionOrder();
   const channelNotificationsOn = useNotificationStore(
     (state) => state.channelNotifications[cleanChannelId(channelId)] !== false,
   );
@@ -174,7 +176,7 @@ export function SubscribeButton({
         <AnchoredPortalMenu
           anchor={anchor}
           onClose={closeMenu}
-          className="z-[70] w-64 overflow-hidden rounded-xl border border-chrome-neutral-800 bg-surface-container-high py-1.5"
+          className="z-[70] w-64 overflow-hidden rounded-xl border border-outline-soft bg-surface-container-high py-1.5"
         >
           <div className="px-3.5 py-1.5 text-xs font-semibold uppercase tracking-widest text-chrome-neutral-500">
             {getString("subscription_notifications_label")}
@@ -229,6 +231,14 @@ export function SubscribeButton({
               }}
             />
           )}
+          <MenuRow
+            icon={pins.includes(cleanId) ? <PinOff size={16} /> : <Pin size={16} />}
+            label={getString(pins.includes(cleanId) ? "subscriptions_unpin" : "subscriptions_pin")}
+            onSelect={() => {
+              closeMenu();
+              togglePin(cleanId);
+            }}
+          />
           <MenuRow
             icon={<FolderPlus size={16} />}
             label={getString("channel_add_to_group")}

@@ -3,13 +3,14 @@ import { useLocation, useNavigate } from 'react-router-dom';
 import { Loader2, Search, X } from 'lucide-react';
 import { SearchSuggestionsPanel, suggestionOptionId } from '../search/SearchSuggestionsPanel';
 import { resolveChannelId } from '../../lib/api/youtube';
+import { clearSearchHistoryAfterAsking } from '../../lib/clearSearchHistory';
 import { getString } from '../../lib/i18n/index';
 import { buildSuggestionColumns, isUnsupportedLink, type SuggestionRow } from '../../lib/searchSuggestions';
 import { useAiListMatcher } from '../../lib/aiList/useAiList';
 import { withoutAiMusic } from '../../lib/aiList/music';
 import { SETTINGS } from '../../lib/settings/schema';
 import { prefetchStreamInfo } from '../../lib/streamResolution';
-import { useSearchSuggestions } from '../../lib/useSearchSuggestions';
+import { useSearchSuggestions, warmSuggestionsOnFocus } from '../../lib/useSearchSuggestions';
 import { FOCUS_SEARCH_EVENT } from '../../lib/windowEvents';
 import { channelRoute, parseYoutubeUrl, routeForYoutubeUrl, type ParsedYoutubeUrl } from '../../lib/youtubeUrl';
 import { useAppSettingsStore } from '../../store/useAppSettingsStore';
@@ -39,7 +40,6 @@ export function TopbarSearch() {
   const recordSearch = useSearchHistoryStore((s) => s.record);
   const runSearch = useRunSearch();
   const removeSearch = useSearchHistoryStore((s) => s.remove);
-  const clearHistory = useSearchHistoryStore((s) => s.clear);
   const playQueue = useMusicPlayerStore((s) => s.playQueue);
   const isHiddenSong = useMusicHiddenFilter();
   const ai = useAiListMatcher();
@@ -288,7 +288,9 @@ export function TopbarSearch() {
           autoComplete="off"
           spellCheck={false}
           onFocus={() => {
-            if (!isSettingsPage) setOpen(true);
+            if (isSettingsPage) return;
+            setOpen(true);
+            if (suggestionsEnabled && !text.trim()) warmSuggestionsOnFocus();
           }}
           onKeyDown={onKeyDown}
           onChange={(event) => onInputChange(event.target.value)}
@@ -321,7 +323,7 @@ export function TopbarSearch() {
           onPick={pick}
           onFill={fill}
           onRemoveHistory={removeSearch}
-          onClearHistory={clearHistory}
+          onClearHistory={() => void clearSearchHistoryAfterAsking()}
           unsupportedLink={isUnsupportedLink(text)}
         />
       ) : null}

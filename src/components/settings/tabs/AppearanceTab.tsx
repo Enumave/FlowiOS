@@ -22,9 +22,10 @@ import {
 import { THEME_FILE_ID } from "../../../lib/themeFile";
 import { useTheme } from "../../../lib/useTheme";
 import { useThemeTransfer } from "../../../lib/useThemeTransfer";
-import { IS_LINUX_RUNTIME } from "../../../lib/platform";
+import { IS_LINUX_RUNTIME, IS_MACOS_RUNTIME } from "../../../lib/platform";
+import { useWindowButtonsPlace } from "../../../lib/windowButtons";
 import { INTERFACE_ZOOMS, readInterfaceZoom, setInterfaceZoom } from "../../../lib/interfaceZoom";
-import { useAppSettingsStore } from "../../../store/useAppSettingsStore";
+import { setSettingValue, useAppSettingsStore } from "../../../store/useAppSettingsStore";
 import { GraphicsCompatibilitySection } from "../GraphicsCompatibilitySection";
 import { MAX_FONT_MB, fontImportMessage, importCustomFont } from "../../../lib/appFont";
 import { useUiStore } from "../../../store/useUiStore";
@@ -46,6 +47,7 @@ export function AppearanceTab() {
   const [darkStyle, setDarkStyle] = usePreference(SETTINGS.THEME_DARK_STYLE, "dark");
   const [appFont, setAppFont] = usePreference(SETTINGS.APP_FONT, "inter");
   const interfaceZoom = useAppSettingsStore((state) => readInterfaceZoom(state.values[SETTINGS.INTERFACE_ZOOM]));
+  const windowButtons = useWindowButtonsPlace();
   const [customFontName] = usePreference(SETTINGS.APP_FONT_CUSTOM_NAME, "");
   const fontInputRef = useRef<HTMLInputElement>(null);
   const themeOptions = [...BUILTIN_THEMES, ...customThemes].map((theme) => ({ value: theme.id, label: theme.name }));
@@ -125,7 +127,7 @@ export function AppearanceTab() {
         </div>
       </div>
 
-      <section className="mt-8 rounded-2xl border border-chrome-neutral-800 bg-surface-container-low p-5">
+      <section className="mt-8 rounded-2xl surface-panel p-5">
         <div>
           <h2 className="text-base font-medium text-chrome-neutral-200">{getString("theme_variant")}</h2>
           <p className="mt-1 text-sm text-chrome-neutral-400">
@@ -173,6 +175,19 @@ export function AppearanceTab() {
               options={INTERFACE_ZOOMS.map((zoom) => ({ value: String(zoom), label: `${Math.round(zoom * 100)}%` }))}
             />
           </SettingItem>
+          {!IS_MACOS_RUNTIME && (
+            <SettingItem title={getString("settings_window_buttons")} description={getString("settings_window_buttons_desc")}>
+              <Select
+                value={windowButtons}
+                onChange={(value) => void setSettingValue(SETTINGS.WINDOW_BUTTONS, value)}
+                options={[
+                  { value: "titlebar", label: getString("settings_window_buttons_titlebar") },
+                  { value: "topbar", label: getString("settings_window_buttons_topbar") },
+                  { value: "none", label: getString("settings_window_buttons_none") },
+                ]}
+              />
+            </SettingItem>
+          )}
           <SettingItem title={getString("settings_app_font")} description={getString("settings_app_font_desc")}>
             <Select
               value={appFont}

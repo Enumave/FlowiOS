@@ -15,6 +15,7 @@ import { useInfiniteScroll } from '../lib/useInfiniteScroll';
 import { REGION_OPTIONS } from '../lib/regionOptions';
 import { usePageRefresh } from '../lib/pageRefresh';
 import type { VideoSummary } from '../types/video';
+import { useBackOnline } from '../lib/useBackOnline';
 
 type ExploreCategoriesProps = {
   onPlay: (video: VideoSummary) => void;
@@ -29,6 +30,7 @@ export default function ExploreCategories({ onPlay, onAddToQueue }: ExploreCateg
   const explore = useExplore(exploreDestinationFrom(searchParams.get('d')));
   usePageRefresh(explore.refresh);
   const { page, loading, error, seeAll, region } = explore;
+  useBackOnline(explore.refresh, Boolean(error));
   const shortsEnabled = useShortsEnabled();
   const shelves = useMemo(() => shelvesWithShorts(page?.shelves ?? [], shortsEnabled), [page, shortsEnabled]);
   const seeAllVideos = useMemo(() => videosWithShorts(seeAll?.videos ?? [], shortsEnabled), [seeAll?.videos, shortsEnabled]);
@@ -49,7 +51,7 @@ export default function ExploreCategories({ onPlay, onAddToQueue }: ExploreCateg
   return (
     <main className="flex-1 overflow-y-auto px-4 py-5 sm:px-6 lg:px-8">
       <div className="mx-auto flex max-w-[1800px] flex-col gap-5">
-        <div className="flex flex-col gap-4 border-b border-chrome-neutral-800/50 pb-4">
+        <div className="flex flex-col gap-4 border-b border-outline-soft pb-4">
           <div className="flex flex-col gap-3 lg:flex-row lg:items-end lg:justify-between">
             <div>
               <p className="text-xs font-semibold uppercase tracking-widest text-chrome-neutral-500">

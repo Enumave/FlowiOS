@@ -35,6 +35,7 @@ import type {
   VideoItemSummary,
   VideoSummary,
 } from "../types/video";
+import { useBackOnline } from "../lib/useBackOnline";
 
 interface ChannelProps {
   onPlay: (video: VideoSummary) => void;
@@ -102,6 +103,7 @@ export const Channel: React.FC<ChannelProps> = ({ onPlay, onAddToQueue }) => {
   const { channelId } = useParams<{ channelId: string }>();
   const navigate = useNavigate();
   const { page, loading, failed, retry } = useChannelPage(channelId);
+  useBackOnline(retry, failed);
   const details = page?.details ?? null;
   usePublishTitle(details?.name);
 
@@ -127,6 +129,7 @@ export const Channel: React.FC<ChannelProps> = ({ onPlay, onAddToQueue }) => {
     ? { key: `q:${activeSearch}`, query: activeSearch }
     : view.request;
   const feed = useChannelFeed(channelId, request, page?.home ?? null);
+  useBackOnline(feed.retry, feed.failed);
   const isHome = !activeSearch && view.kind === "home";
   const layout = activeSearch ? "videos" : layoutForKind(view.kind);
   const watched = useChannelWatched(channelId, isHome && !!details);
@@ -220,7 +223,7 @@ export const Channel: React.FC<ChannelProps> = ({ onPlay, onAddToQueue }) => {
 
       <div className="mx-auto px-4 py-8 sm:px-6 lg:px-8">
         {activeSearch && (
-          <div className="mb-6 flex items-center justify-between border-b border-chrome-neutral-800 pb-3">
+          <div className="mb-6 flex items-center justify-between border-b border-outline-soft pb-3">
             <h2 className="text-base font-semibold text-chrome-neutral-200">
               {getString("channel_search_results", activeSearch)}
             </h2>

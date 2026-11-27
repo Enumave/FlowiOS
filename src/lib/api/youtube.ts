@@ -165,7 +165,9 @@ export async function getVideoStoryboard(videoId: string): Promise<StoryboardLev
   return invokeBackend<StoryboardLevel[]>("get_video_storyboard", { videoId });
 }
 
-export async function getStreamInfo(videoId: string, refresh = false): Promise<StreamInfo> {
+/** `background` marks a resolve nobody is waiting on yet (a prefetch, a hover
+ * preview). The backend holds it while YouTube blocks the network. */
+export async function getStreamInfo(videoId: string, refresh = false, background = false): Promise<StreamInfo> {
   if (!(await isTauriEnv())) {
     console.warn("Tauri not detected. Returning public fallback stream link.");
     return {
@@ -207,7 +209,7 @@ export async function getStreamInfo(videoId: string, refresh = false): Promise<S
       dashManifestUrl: null,
     };
   }
-  return invokeBackend<StreamInfo>("get_stream_info", { videoId, refresh });
+  return invokeBackend<StreamInfo>("get_stream_info", { videoId, refresh, background });
 }
 
 export interface SabrDebugState {
@@ -504,6 +506,12 @@ export async function getExploreGrid(
 }
 
 /** Suggestions for `query`; `region` is the viewer's two-letter country code. */
+/** Opens the suggest host's connection so the first keystroke doesn't wait for one. */
+export async function warmSearchSuggestions(): Promise<void> {
+  if (!(await isTauriEnv())) return;
+  await invokeBackend<void>("warm_search_suggestions");
+}
+
 export async function getSearchSuggestions(query: string, region?: string | null): Promise<SearchSuggestion[]> {
   if (!(await isTauriEnv())) {
     console.warn("Tauri not detected. Returning mock suggestions.");

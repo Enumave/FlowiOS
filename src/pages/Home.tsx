@@ -40,6 +40,9 @@ import { HomeFeedButton } from "../components/home/HomeFeedButton";
 import { HomeChipRow } from "../components/home/HomeChipRow";
 import { HomeMixCard } from "../components/home/HomeMixCard";
 import { usePageRefresh } from "../lib/pageRefresh";
+import { useBackOnline } from "../lib/useBackOnline";
+import { HomeOfflineDownloads } from "../components/home/HomeOfflineDownloads";
+import { screenErrorCopy, type LoadErrorCopy } from "../lib/loadErrorCopy";
 
 interface HomeProps {
   onPlay: (video: VideoSummary) => void;
@@ -49,6 +52,9 @@ interface HomeProps {
 // A card keeps its place in the tree when one before it is hidden, instead of every card after
 // it being mounted again.
 const videoIdKey = (video: VideoSummary) => video.id;
+
+const FEED_ERROR_COPY: LoadErrorCopy = { title: "home_feed_error_title", hint: "home_feed_error_body" };
+const CHIP_ERROR_COPY: LoadErrorCopy = { title: "home_chip_error_title", hint: "home_chip_error_body" };
 
 /** Home: the backend builds the feed (services/home_feed); this page lays it out. */
 export const Home: React.FC<HomeProps> = ({ onPlay, onAddToQueue }) => {
@@ -97,9 +103,11 @@ export const Home: React.FC<HomeProps> = ({ onPlay, onAddToQueue }) => {
     [setQueue, navigate],
   );
   const [refreshing, setRefreshing] = useState(false);
+  const [backOnline, setBackOnline] = useState(false);
   const gridStyle = useGridStyle();
 
   const handleRefresh = useCallback(() => {
+    setBackOnline(false);
     setRefreshing(true);
     void refresh().finally(() => setRefreshing(false));
   }, [refresh]);
@@ -122,6 +130,17 @@ export const Home: React.FC<HomeProps> = ({ onPlay, onAddToQueue }) => {
 
   // Cards the viewer hid leave at once; the backend drops them from its next pages too.
   const visibleVideos = useMemo(() => snapshot.cards.filter((card) => !isHidden(card)), [snapshot.cards, isHidden]);
+  // Nothing on screen to keep, so a failed Home and a failed chip load again by themselves.
+  const homeFailedEmpty = homeFeedEnabled && visibleVideos.length === 0 && (failed || Boolean(snapshot.error));
+  useBackOnline(handleRefresh, !chipFeed && homeFailedEmpty && !snapshot.loading);
+  useBackOnline(reloadChip, chipFeed?.status === "failed");
+  // Cards on screen stay put when the connection returns, since the viewer may be reading
+  // them. The backend keeps saved cards without an error when a fresh load can't reach
+  // YouTube, so any reconnect offers the refresh, and a failed next page loads by itself.
+  const homeShowsCards = homeFeedEnabled && !chipFeed && visibleVideos.length > 0;
+  useBackOnline(() => setBackOnline(true), homeShowsCards);
+  useBackOnline(retryMore, homeShowsCards && snapshot.loadMoreFailed);
+  const showBackOnline = backOnline && homeShowsCards;
   const feedIndex = useMemo(
     () => new Map(snapshot.cards.map((card, index) => [card.id, index])),
     [snapshot.cards],
@@ -195,13 +214,8 @@ export const Home: React.FC<HomeProps> = ({ onPlay, onAddToQueue }) => {
     if (chips.feed.status === "loading") {
       body = <VideoGrid loading onPlay={onPlay} />;
     } else if (chips.feed.status === "failed") {
-      body = (
-        <HomeFeedMessage
-          title={getString("home_chip_error_title")}
-          body={getString("home_chip_error_body")}
-          action={retryButton}
-        />
-      );
+      const copy = screenErrorCopy(chips.feed.error, CHIP_ERROR_COPY);
+      body = <HomeFeedMessage title={getString(copy.title)} body={getString(copy.hint)} action={retryButton} />;
     } else if (chipMixes.length > 0) {
       body = (
         <div className="flow-grid gap-y-8 pb-8" style={gridStyle}>
@@ -232,13 +246,13 @@ export const Home: React.FC<HomeProps> = ({ onPlay, onAddToQueue }) => {
     body = <HomeFeedMessage title={getString("home_feed_disabled_title")} body={getString("home_feed_disabled_body")} />;
   } else if (visibleVideos.length === 0 && snapshot.loading) {
     body = <VideoGrid loading onPlay={onPlay} />;
-  } else if (visibleVideos.length === 0 && (failed || snapshot.error)) {
+  } else if (homeFailedEmpty) {
+    const copy = screenErrorCopy(snapshot.error, FEED_ERROR_COPY);
     body = (
-      <HomeFeedMessage
-        title={getString("home_feed_error_title")}
-        body={getString("home_feed_error_body")}
-        action={refreshButton}
-      />
+      <div className="flex flex-col gap-8">
+        <HomeFeedMessage title={getString(copy.title)} body={getString(copy.hint)} action={refreshButton} />
+        <HomeOfflineDownloads onPlay={onPlay} />
+      </div>
     );
   } else if (visibleVideos.length === 0) {
     body = (
@@ -251,6 +265,14 @@ export const Home: React.FC<HomeProps> = ({ onPlay, onAddToQueue }) => {
   } else {
     body = (
       <>
+        {showBackOnline && (
+          <div className="flex justify-center">
+            <HomeFeedButton onClick={handleRefresh}>
+              <RefreshCw size={16} />
+              {getString("home_back_online_refresh")}
+            </HomeFeedButton>
+          </div>
+        )}
         <VideoGrid
           videos={visibleVideos}
           onPlay={onPlay}

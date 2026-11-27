@@ -28,7 +28,10 @@ import { useSubscriptionChannelDetails, useSubscriptionFeed } from "../lib/useSu
 import { useBoolPref, usePreference } from "../lib/usePreference";
 import { useShortsEnabled } from "../lib/useShortsContent";
 import { isVideoOfChannel } from "../lib/subscriptionFeedMerge";
-import { sortSubscriptions, type SubscriptionSortMode } from "../lib/subscriptionSort";
+import { channelsByNewestUpload, sortSubscriptions } from "../lib/subscriptionSort";
+import { pinnedFirst } from "../lib/subscriptionPins";
+import { useSubscriptionOrder } from "../lib/useSubscriptionOrder";
+import { useChannelWatchCountsStore } from "../store/useChannelWatchCountsStore";
 import { useUnplayableVideoIds } from "../lib/useUnplayableVideoIds";
 import { useFinishedShortIds, useSubscriptionsHiddenFilter } from "../lib/useWatchedFilter";
 import { splitSubscriptionFeed } from "../lib/subscriptionFeedSplit";
@@ -226,18 +229,29 @@ export const Subscriptions: React.FC<SubscriptionsProps> = ({ onPlay, onAddToQue
     return visibleChannels.filter((channel) => groupChannelIds.has(channel.id));
   }, [selectedGroup, visibleChannels]);
 
-  const [sortMode, setSortMode] = usePreference(SETTINGS.SUBS_SORT_MODE);
+  const { sortMode, setSortMode, pins, togglePin, reorderPins, manualOrder, reorderManual } = useSubscriptionOrder();
   // Posts is a view of its own beside the groups, which still pick whose posts show, as on Android.
   const [showPostsChip] = useBoolPref(SETTINGS.SUBS_POSTS_CHIP);
   const [showPosts, setShowPosts] = useState(false);
   const postsShown = showPostsChip && showPosts;
+  const newestFirst = useMemo(() => channelsByNewestUpload(videos), [videos]);
+  const watchCounts = useChannelWatchCountsStore((state) => state.counts);
+  // Read again each time the page opens, so videos watched since count.
+  useEffect(() => {
+    if (sortMode === "watched") void useChannelWatchCountsStore.getState().load();
+  }, [sortMode]);
+  const orderSources = useMemo(
+    () => ({ newestFirst, manualOrder, watchCounts: watchCounts ?? undefined }),
+    [newestFirst, manualOrder, watchCounts],
+  );
   const sortedFeedChannels = useMemo(
-    () => sortSubscriptions(feedChannels, sortMode as SubscriptionSortMode, videos),
-    [feedChannels, sortMode, videos],
+    // The channel row puts pins first, as Android's Quick access does.
+    () => pinnedFirst(sortSubscriptions(feedChannels, sortMode, orderSources), pins).channels,
+    [feedChannels, sortMode, orderSources, pins],
   );
   const sortedManageChannels = useMemo(
-    () => sortSubscriptions(visibleChannels, sortMode as SubscriptionSortMode, videos),
-    [visibleChannels, sortMode, videos],
+    () => sortSubscriptions(visibleChannels, sortMode, orderSources),
+    [visibleChannels, sortMode, orderSources],
   );
 
   const channelsWithNewVideos = useMemo(() => {
@@ -377,7 +391,7 @@ export const Subscriptions: React.FC<SubscriptionsProps> = ({ onPlay, onAddToQue
 
             {viewMode === "feed" ? (
               <>
-                <div className="flex items-center gap-3 border-y border-chrome-neutral-800">
+                <div className="flex items-center gap-3 border-y border-outline-soft">
                   <CategoryChips
                     leading={
                       showPostsChip ? (
@@ -430,7 +444,7 @@ export const Subscriptions: React.FC<SubscriptionsProps> = ({ onPlay, onAddToQue
                   ) : null}
 
                   {feedError ? (
-                    <div className="rounded-2xl border border-chrome-neutral-800 bg-surface-container-low p-6 text-sm text-chrome-neutral-300">
+                    <div className="rounded-2xl surface-panel p-6 text-sm text-chrome-neutral-300">
                       {getString("subscriptions_feed_error")}
                     </div>
                   ) : feedLoading ? (
@@ -472,8 +486,12 @@ export const Subscriptions: React.FC<SubscriptionsProps> = ({ onPlay, onAddToQue
               <SubscriptionsManage
                 channels={sortedManageChannels}
                 channelDetails={channelDetails}
-                sortMode={sortMode as SubscriptionSortMode}
+                sortMode={sortMode}
                 onSortChange={setSortMode}
+                pins={pins}
+                onTogglePin={togglePin}
+                onReorderPins={reorderPins}
+                onReorderManual={reorderManual}
                 channelNotifications={channelNotifications}
                 onSetNotification={setChannelNotification}
                 onOpenChannel={(channelId) => navigate(`/channel/${channelId}`)}
@@ -511,7 +529,7 @@ export const Subscriptions: React.FC<SubscriptionsProps> = ({ onPlay, onAddToQue
 
       {showImportModal && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-chrome-black/70 p-4">
-          <div className="w-full max-w-lg space-y-4 rounded-2xl border border-chrome-neutral-800 bg-surface-container p-6">
+          <div className="w-full max-w-lg space-y-4 rounded-2xl border border-outline-soft bg-surface-container p-6">
             <div className="flex items-center justify-between">
               <h3 className="flex items-center gap-2 text-lg font-semibold text-chrome-neutral-100">
                 <Upload size={18} className="text-[var(--color-primary)]" />
@@ -632,8 +650,8 @@ function GroupsModal({
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-chrome-black/70 p-4">
-      <div className="grid h-[86vh] w-full max-w-4xl grid-cols-1 overflow-hidden rounded-2xl border border-chrome-neutral-800 bg-surface-container md:grid-cols-[minmax(0,0.9fr)_minmax(0,1.1fr)]">
-        <section className="flex min-h-0 flex-col border-b border-chrome-neutral-800 p-5 md:border-b-0 md:border-e">
+      <div className="grid h-[86vh] w-full max-w-4xl grid-cols-1 overflow-hidden rounded-2xl border border-outline-soft bg-surface-container md:grid-cols-[minmax(0,0.9fr)_minmax(0,1.1fr)]">
+        <section className="flex min-h-0 flex-col border-b border-outline-soft p-5 md:border-b-0 md:border-e">
           <div className="mb-4 flex items-center justify-between gap-3">
             <h3 className="text-lg font-semibold text-chrome-neutral-100">
               {getString("subscriptions_groups_manage")}
@@ -647,7 +665,7 @@ function GroupsModal({
 
           <div className="min-h-0 flex-1 overflow-y-auto rounded-lg border border-chrome-neutral-800 bg-surface-container-low">
             {groups.length > 0 ? (
-              <div className="divide-y divide-chrome-neutral-800">
+              <div className="divide-y divide-outline-soft">
                 {groups.map((group, index) => (
                   <div key={group.name} className="flex items-center gap-2 px-3 py-2">
                     <button
@@ -706,7 +724,7 @@ function GroupsModal({
           />
 
           <div className="min-h-0 flex-1 overflow-y-auto rounded-lg border border-chrome-neutral-800 bg-surface-container-low">
-            <div className="divide-y divide-chrome-neutral-800">
+            <div className="divide-y divide-outline-soft">
               {filteredChannels.map((channel) => {
                 const avatarUrl = getAvatarUrl(channel.avatarUrl);
                 const selected = selectedChannelIds.has(channel.id);
