@@ -1241,6 +1241,7 @@ replace(
     "              event.currentTarget.setPointerCapture(event.pointerId);\n"
     "              setIsScrubbing(true);\n"
     "              handlePointerSeek(event.clientX);\n"
+    "              updateHoverPreview(event.clientX, event.currentTarget, true);\n"
     "            }}\n",
 )
 # a touch the system takes over (an edge swipe, a call) ends the drag instead of leaving it stuck
@@ -1287,5 +1288,72 @@ with open("src/App.css", "a", encoding="utf-8", newline="\n") as css:
         "}\n"
     )
 print("patched src/App.css (touch seek bar)")
+
+# 20. The scrub preview as Android draws it (SeekPreviewStrip): holding the seek bar shows a filmstrip of
+#     frames above it with the time and chapter over it, in place of the desktop's single frame that
+#     follows the pointer. SeekFilmstrip.tsx draws it from the storyboard the player already has, and
+#     is updated straight from the drag (no state), so the controls are not re-rendered on every move.
+#     A touchscreen has no hover, so the read-out belongs to a drag and is not shown otherwise.
+replace(
+    PLAYER_FILE,
+    'import { PREVIEW_WIDTH, paintStoryboardTile, pickStoryboardLevel, storyboardTileHeight } from "../../lib/seekPreview";\n',
+    'import { PREVIEW_WIDTH, paintStoryboardTile, pickStoryboardLevel, storyboardTileHeight } from "../../lib/seekPreview";\n'
+    'import { FILMSTRIP_NOMINAL_FRAME_WIDTH, SeekFilmstrip, type SeekFilmstripHandle } from "./SeekFilmstrip";\n',
+)
+replace(
+    PLAYER_FILE,
+    "  const hoverPillRef = useRef<HTMLDivElement>(null);\n",
+    "  const hoverPillRef = useRef<HTMLDivElement>(null);\n  const filmstripRef = useRef<SeekFilmstripHandle>(null);\n",
+)
+replace(
+    PLAYER_FILE,
+    "  const updateHoverPreview = (clientX: number, trackEl?: HTMLElement) => {\n",
+    "  const updateHoverPreview = (clientX: number, trackEl?: HTMLElement, touchDrag = false) => {\n",
+)
+replace(
+    PLAYER_FILE,
+    "    if (!(duration > 0)) return;\n"
+    "    // A preview frame is wider than the pill's text; keep it inside the player.\n",
+    "    if (!(duration > 0)) return;\n"
+    "    if (IS_MOBILE_RUNTIME) {\n"
+    "      if (!isScrubbing && !touchDrag) return;\n"
+    "      const time = (x / rect.width) * duration;\n"
+    "      const chapter = segments?.find((c) => time >= c.startSeconds && time <= c.endSeconds);\n"
+    "      filmstripRef.current?.update({\n"
+    "        seconds: time,\n"
+    "        duration,\n"
+    "        trackWidth: rect.width,\n"
+    "        level: pickStoryboardLevel(storyboard, FILMSTRIP_NOMINAL_FRAME_WIDTH * (window.devicePixelRatio || 1)),\n"
+    "        imageUrl: (url) => proxiedImage(url, proxyBase),\n"
+    "        timeText: formatTime(time),\n"
+    "        chapter: chapter?.title,\n"
+    "      });\n"
+    "      return;\n"
+    "    }\n"
+    "    // A preview frame is wider than the pill's text; keep it inside the player.\n",
+)
+replace(
+    PLAYER_FILE,
+    '  const hideHoverPreview = () => {\n    if (hoverPillRef.current) hoverPillRef.current.style.opacity = "0";\n  };\n',
+    '  const hideHoverPreview = () => {\n    if (hoverPillRef.current) hoverPillRef.current.style.opacity = "0";\n    filmstripRef.current?.hide();\n  };\n',
+)
+replace(
+    PLAYER_FILE,
+    "            {/* Hover preview pill \u2014 always mounted so the imperative position\n",
+    "            <SeekFilmstrip ref={filmstripRef} />\n\n"
+    "            {/* Hover preview pill \u2014 always mounted so the imperative position\n",
+)
+with open("src/App.css", "a", encoding="utf-8", newline="\n") as css:
+    css.write(
+        "\n/* The scrub filmstrip rests just above the seek bar's top edge, whatever height the bar's touch area\n"
+        "   has; in fullscreen that area is taller, so the strip sits lower in it. */\n"
+        "[data-seek-filmstrip] {\n"
+        "  bottom: 100%;\n"
+        "}\n"
+        "[data-progress-track][data-touch-fullscreen] [data-seek-filmstrip] {\n"
+        "  bottom: calc(100% - 8px);\n"
+        "}\n"
+    )
+print("patched src/App.css (filmstrip)")
 
 print("ios-ui: done")
