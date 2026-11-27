@@ -10,7 +10,7 @@
 */
 
 /** The drag progress at which the page is fully transparent. */
-export const BODY_FADE_END = 0.3;
+export const BODY_FADE_END = 0.7;
 /** How far the page slides down over a full collapse, in px. */
 export const BODY_SLIDE_PX = 80;
 
