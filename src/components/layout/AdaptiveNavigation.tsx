@@ -338,8 +338,8 @@ export function NavigationRail({ onOpenDrawer }: { onOpenDrawer?: () => void }) 
               size="lg"
               aria-label={toggleLabel}
               title={toggleLabel}
-              aria-expanded={expanded}
-              onClick={() => setOpenPref((value) => !value)}
+              aria-expanded={expandable ? expanded : undefined}
+              onClick={() => (expandable ? setOpenPref((value) => !value) : onOpenDrawer?.())}
             >
               {expanded ? <MenuOpenIcon className="rtl:-scale-x-100" /> : <Menu />}
             </IconButton>
