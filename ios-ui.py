@@ -67,18 +67,23 @@ replace(
     'import { APP_TITLEBAR_HEIGHT, IS_LINUX_RUNTIME } from "./lib/platform";',
     'import { APP_TITLEBAR_HEIGHT, IS_LINUX_RUNTIME, IS_MOBILE_RUNTIME } from "./lib/platform";',
 )
+# The layout div's style: upstream now builds it in `useTitleBar` (it used to be a module constant).
 replace(
     "src/App.tsx",
-    'const windowLayoutStyle = { "--app-titlebar-height": `${APP_TITLEBAR_HEIGHT}px` } as CSSProperties;',
-    "const windowLayoutStyle = {\n"
-    '  "--app-titlebar-height": `${APP_TITLEBAR_HEIGHT}px`,\n'
-    "  ...(IS_MOBILE_RUNTIME\n"
-    "    ? {\n"
+    '  const style = useMemo(() => ({ "--app-titlebar-height": `${height}px` }) as CSSProperties, [height]);\n',
+    "  const style = useMemo(\n"
+    "    () =>\n"
+    "      ({\n"
+    '        "--app-titlebar-height": `${height}px`,\n'
+    "        ...(IS_MOBILE_RUNTIME\n"
+    "          ? {\n"
     '        paddingTop: "env(safe-area-inset-top, 0px)",\n'
     '        paddingBottom: "env(safe-area-inset-bottom, 0px)",\n'
     "      }\n"
-    "    : {}),\n"
-    "} as CSSProperties;",
+    "          : {}),\n"
+    "      }) as CSSProperties,\n"
+    "    [height],\n"
+    "  );\n",
 )
 replace(
     "index.html",
@@ -595,8 +600,8 @@ replace(
 )
 replace(
     "src/components/player/FlowPlayerControls.tsx",
-    '<div className="flex items-center justify-between gap-3">',
-    '<div data-touch-bar className="flex items-center justify-between gap-3">',
+    '<div className={cx("flex items-center justify-between gap-3", fade)}>',
+    '<div data-touch-bar className={cx("flex items-center justify-between gap-3", fade)}>',
 )
 with open("src/App.css", "a", encoding="utf-8", newline="\n") as css:
     css.write(
@@ -960,7 +965,7 @@ replace(
 # The row of pills above the seek bar.
 replace(
     PLAYER_FILE,
-    "          <div\n            ref={seekWheelRef}\n            data-progress-track\n",
+    "          <div\n            ref={setSeekTrack}\n            data-progress-track\n",
     """          {IS_MOBILE_RUNTIME && (
             <div className="flex items-center justify-between gap-2 px-3 pb-1">
               <div className="flex min-w-0 items-center gap-2">
@@ -1031,15 +1036,15 @@ replace(
             </div>
           )}
           <div
-            ref={seekWheelRef}
+            ref={setSeekTrack}
             data-progress-track
 """,
 )
 # The desktop row of small buttons is not drawn on touch devices.
 replace(
     PLAYER_FILE,
-    '          <div data-touch-bar className="flex items-center justify-between gap-3">\n',
-    '          {!IS_MOBILE_RUNTIME && (\n          <div data-touch-bar className="flex items-center justify-between gap-3">\n',
+    '          <div data-touch-bar className={cx("flex items-center justify-between gap-3", fade)}>\n',
+    '          {!IS_MOBILE_RUNTIME && (\n          <div data-touch-bar className={cx("flex items-center justify-between gap-3", fade)}>\n',
 )
 replace(
     PLAYER_FILE,
@@ -1223,12 +1228,12 @@ replace(
 replace(
     PLAYER_FILE,
     '            data-progress-track\n'
-    '            className="group/seekbar relative flex h-6 cursor-pointer items-center"\n',
+    '            data-collapsed={collapsed ? "true" : undefined}\n',
     '            data-progress-track\n'
+    '            data-collapsed={collapsed ? "true" : undefined}\n'
     '            data-scrubbing={isScrubbing ? "" : undefined}\n'
     '            data-touch-fullscreen={IS_MOBILE_RUNTIME && isFullscreen ? "" : undefined}\n'
-    '            style={IS_MOBILE_RUNTIME ? { touchAction: "none" } : undefined}\n'
-    '            className="group/seekbar relative flex h-6 cursor-pointer items-center"\n',
+    '            style={IS_MOBILE_RUNTIME ? { touchAction: "none" } : undefined}\n',
 )
 replace(
     PLAYER_FILE,
