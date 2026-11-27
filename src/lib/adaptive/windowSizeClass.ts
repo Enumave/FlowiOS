@@ -8,6 +8,8 @@
 
 /** Material 3 window size class breakpoints (dp / CSS px), the V2 set Flow for Android uses. */
 export const WIDTH_BREAKPOINT = { medium: 600, expanded: 840, large: 1200, extraLarge: 1600 } as const;
+/** Narrowest window whose rail may open to show labels beside its icons. */
+export const RAIL_EXPANDABLE_MIN_WIDTH = 1100;
 export const HEIGHT_BREAKPOINT = { medium: 480, expanded: 900 } as const;
 
 export type WidthClass = "compact" | "medium" | "expanded" | "large" | "extraLarge";
