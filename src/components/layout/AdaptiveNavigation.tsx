@@ -333,7 +333,7 @@ export function NavigationRail({ onOpenDrawer }: { onOpenDrawer?: () => void }) 
         className="flex h-full flex-col bg-surface-container px-5 py-3"
       >
         <div className="flex h-12 items-center justify-start ps-1">
-          {expandable && (
+          {(expandable || onOpenDrawer) && (
             <IconButton
               size="lg"
               aria-label={toggleLabel}
