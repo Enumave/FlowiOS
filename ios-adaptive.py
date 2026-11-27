@@ -227,7 +227,7 @@ replace(
 replace(
     SL,
     '    <div className="mx-auto w-full h-[calc(100vh-64px)] flex">\n'
-    '      <nav className="w-56 shrink-0 border-e border-chrome-neutral-800 overflow-y-auto py-6 px-3 flex flex-col gap-1">\n',
+    '      <nav className="w-56 shrink-0 border-e border-outline-soft overflow-y-auto py-6 px-3 flex flex-col gap-1">\n',
     "    <div className={`mx-auto w-full flex ${IS_ADAPTIVE_LAYOUT ? 'h-full' : 'h-[calc(100vh-64px)]'}`}>\n"
     "      <nav\n"
     "        className={\n"
@@ -416,12 +416,11 @@ replace_group(
             '        <div className={IS_ADAPTIVE_LAYOUT ? "flex items-center justify-between px-3 pt-2" : "flex items-center justify-between"}>\n',
         ),
         (
-            '          <h2 className="text-lg font-bold text-chrome-zinc-100 tracking-tight flex items-center gap-2">\n',
-            '          <h2 className={IS_ADAPTIVE_LAYOUT ? "text-base font-bold text-chrome-zinc-100 flex items-center gap-2" : "text-lg font-bold text-chrome-zinc-100 tracking-tight flex items-center gap-2"}>\n',
-        ),
-        (
-            '            <span className="text-xs text-chrome-zinc-500 font-semibold bg-surface-container-low border border-chrome-neutral-800 px-2 py-0.5 rounded-full">\n',
-            '            <span className={IS_ADAPTIVE_LAYOUT ? "hidden" : "text-xs text-chrome-zinc-500 font-semibold bg-surface-container-low border border-chrome-neutral-800 px-2 py-0.5 rounded-full"}>\n',
+            (
+                '          <h2 dir="auto" className="text-lg font-bold tracking-tight text-chrome-zinc-100">{title}</h2>\n',
+                '          <h2 className="text-lg font-bold text-chrome-zinc-100 tracking-tight flex items-center gap-2">\n',
+            ),
+            lambda matched: '          <h2 dir="auto" className={IS_ADAPTIVE_LAYOUT ? "flex items-center gap-2 text-base font-bold text-chrome-zinc-100" : "text-lg font-bold tracking-tight text-chrome-zinc-100"}>{title}</h2>\n',
         ),
         (
             '<ShelfScroller className="flex gap-4 px-3 scroll-px-3 -mx-3 pt-3 -mt-2 pb-3 snap-x">',
@@ -445,8 +444,8 @@ replace_group(
     "src/components/player/FlowPlayerControls.tsx",
     [
         (
-            "{idleStripEnabled && !isLive && !shouldShowControls && (",
-            "{idleStripEnabled && !isLive && !shouldShowControls && !(IS_MOBILE_RUNTIME && isFullscreen) && (",
+            "  const collapsed = idleStripEnabled && !isLive && !shouldShowControls && !isScrubbing;\n",
+            "  const collapsed = idleStripEnabled && !isLive && !shouldShowControls && !isScrubbing && !(IS_MOBILE_RUNTIME && isFullscreen);\n",
         ),
     ],
     "idle progress strip",
