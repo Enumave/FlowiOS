@@ -120,8 +120,8 @@ GROUPS = [
         "src/components/video/VideoCard.tsx",
         [
             (
-                "import { Plus, Ban, Bell, BellRing, Check, Info, ListStart, MoreVertical, Trash2, GripHorizontal, Sparkles, Eye, EyeOff, Clock, ListPlus, ListVideo, Download, User, Share2 } from 'lucide-react';",
-                "import { Plus, Ban, Bell, BellRing, Check, Info, ListStart, MoreVertical, Trash2, GripHorizontal, Sparkles, Eye, EyeOff, Clock, ListPlus, ListVideo, Download, User, Share2, X } from 'lucide-react';",
+                "Download, User, Share2 } from 'lucide-react';",
+                "Download, User, Share2, X } from 'lucide-react';",
             ),
             # Two title lines whatever the desktop setting says, as Android's titleMedium.
             (
@@ -183,13 +183,15 @@ GROUPS = [
                 'import React, { useMemo } from "react";\nimport { Link } from "react-router-dom";\n',
             ),
             (
-                '            <span dir="auto">{title}</span>\n',
+                '          <h2 dir="auto" className={IS_ADAPTIVE_LAYOUT ? "flex items-center gap-2 text-base font-bold text-chrome-zinc-100" : "text-lg font-bold tracking-tight text-chrome-zinc-100"}>{title}</h2>\n',
+                '          <h2 dir="auto" className={IS_ADAPTIVE_LAYOUT ? "flex items-center gap-2 text-base font-bold text-chrome-zinc-100" : "text-lg font-bold tracking-tight text-chrome-zinc-100"}>\n'
                 "            {IS_ADAPTIVE_LAYOUT && variant === \"continue\" && (\n"
                 '              <svg viewBox="0 0 24 24" aria-hidden="true" className="h-6 w-6 shrink-0 fill-[var(--color-primary)]">\n'
                 '                <path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm-2 14.5v-9l6 4.5-6 4.5z" />\n'
                 "              </svg>\n"
                 "            )}\n"
-                '            <span dir="auto">{title}</span>\n',
+                "            <span>{title}</span>\n"
+                "          </h2>\n",
             ),
             (
                 "          {action}\n        </div>\n      ) : null}\n",
