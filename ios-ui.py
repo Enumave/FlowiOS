@@ -967,7 +967,7 @@ replace(
     PLAYER_FILE,
     "          <div\n            ref={setSeekTrack}\n            data-progress-track\n",
     """          {IS_MOBILE_RUNTIME && (
-            <div className="flex items-center justify-between gap-2 px-3 pb-1">
+            <div className={cx("flex items-center justify-between gap-2 px-3 pb-1", fade)}>
               <div className="flex min-w-0 items-center gap-2">
                 <div
                   ref={timePillRef}
