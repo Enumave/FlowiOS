@@ -284,7 +284,7 @@ function readRailExpanded(): boolean {
  * 96-wide column of icons over labels; on large windows its header opens it to labels beside the
  * icons. When the window is too short for every tab the last slot becomes "More".
  */
-export function NavigationRail(_props: { onOpenDrawer?: () => void }) {
+export function NavigationRail({ onOpenDrawer }: { onOpenDrawer?: () => void }) {
   const location = useLocation();
   const tabs = useNavTabs();
   const expandable = useRailExpandable();
